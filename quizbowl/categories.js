@@ -14,6 +14,16 @@ export const CATEGORY_TO_SUBCATEGORY = {
 };
 export const CATEGORIES = Object.keys(CATEGORY_TO_SUBCATEGORY);
 
+export const SBCATEGORY_TO_SUBCATEGORY = {
+  MATH: [],
+  PHYSICS: [],
+  CHEMISTRY: [],
+  BIOLOGY: [],
+  'EARTH AND SPACE': [],
+  ENERGY: []
+};
+export const SBCATEGORIES = Object.keys(SBCATEGORY_TO_SUBCATEGORY);
+
 export const CATEGORY_TO_ALTERNATE_SUBCATEGORIES = {
   Literature: ['Drama', 'Long Fiction', 'Poetry', 'Short Fiction', 'Misc Literature'],
   History: [],

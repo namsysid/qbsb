@@ -90,6 +90,13 @@ export default class api {
       .then(response => response.tossups);
   }
 
+  static async getRandomScienceBowlQuestion ({ subjects, competitions, years, isMcq, isTossup, number }) {
+    const filteredParams = filterParams({ subjects, competitions, years, isMcq, isTossup, number });
+    return await fetch('/api/science-bowl/random-question?' + new URLSearchParams(filteredParams))
+      .then(response => response.json())
+      .then(response => response.questions);
+  }
+
   static getSetList () {
     return api.SET_LIST;
   }

@@ -1,6 +1,6 @@
 // database schemas
 
-import { DIFFICULTIES, CATEGORIES, SUBCATEGORIES_FLATTENED_ALL } from '../constants';
+import { DIFFICULTIES, CATEGORIES, SUBCATEGORIES_FLATTENED_ALL, SBCATEGORIES } from '../constants';
 
 const schemas = {
   tossup: {
@@ -208,6 +208,78 @@ const schemas = {
       'difficulty',
       'setYear'
     ]
+  },
+  sbquestion: {
+    $schema: 'https://json-schema.org/draft/2020-12/schema',
+    title: 'SBQuestions',
+    description: 'Science Bowl Questions',
+    type: 'object',
+    properties: {
+      _id: {
+        description: 'Internal id for the tossup - consists of questionline and year',
+        type: 'string'
+      },
+      question: {
+        description: 'The question text',
+        type: 'string'
+      },
+      options: {
+        description: 'Multiple choice options (if applicable)',
+        type: 'array',
+        items: {
+          type: 'string'
+        },
+        minItems: 0,
+        maxItems: 4
+      },
+      answer: {
+        description: 'The answerline',
+        type: 'string'
+      },
+      is_mcq: {
+        description: 'Whether the question is a multiple-choice question',
+        type: 'boolean'
+      },
+      isTossup: {
+        description: 'Whether the question is a tossup',
+        type: 'boolean'
+      },
+      subject: {
+        description: 'The category of the question',
+        type: 'string',
+        enum: SBCATEGORIES
+      },
+      competition: {
+        description: 'The competition the question is from',
+        type: 'string'
+      },
+      year: {
+        description: 'The year of the competition the question is from',
+        type: 'string'
+      },
+      // packetNumber: {
+      //   description: 'The packet number of the packet the question is from',
+      //   type: 'integer',
+      //   minimum: 1
+      // },
+      // questionNumber: {
+      //   description: 'The question number of the question',
+      //   type: 'integer',
+      //   minimum: 1
+      // },
+    },
+    required: [
+      '_id',
+      'question',
+      'options',
+      'answer',
+      'is_mcq',
+      'isTossup',
+      'subject',
+      'competition',
+      'year'
+    ],
+    additionalProperties: false
   }
 };
 

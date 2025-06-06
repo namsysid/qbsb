@@ -34,8 +34,23 @@ router.use('/user', userRouter);
 
 router.use('/quizbowl', express.static('quizbowl'));
 
-router.use(express.static('client', { extensions: ['html'] }));
-router.use(express.static('node_modules'));
+// Serve static files with proper MIME types
+router.use(express.static('client', {
+  extensions: ['html'],
+  setHeaders: (res, path) => {
+    if (path.endsWith('.js') || path.endsWith('.jsx')) {
+      res.setHeader('Content-Type', 'application/javascript');
+    }
+  }
+}));
+
+router.use(express.static('node_modules', {
+  setHeaders: (res, path) => {
+    if (path.endsWith('.js')) {
+      res.setHeader('Content-Type', 'application/javascript');
+    }
+  }
+}));
 
 /**
  * 404 Error handler
