@@ -409,6 +409,14 @@
                 return;
             }
             
+            // Stop any ongoing speech synthesis
+            if (speechSynthesis.speaking) {
+                console.log('Stopping speech synthesis on buzz');
+                speechSynthesis.cancel();
+                currentUtterance = null;
+                isPaused = false;
+            }
+            
             // Send buzz message to room - let the room handle everything
             window.room.message('user', { type: 'buzz' });
         });
