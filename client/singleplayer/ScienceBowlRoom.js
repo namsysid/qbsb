@@ -62,6 +62,12 @@ export default class ScienceBowlRoom extends QuestionRoom {
       case 'pause':
         console.log('ScienceBowlRoom: Handling pause message');
         return this.pause(userId);
+      case 'buzz':
+        console.log('ScienceBowlRoom: Handling buzz message');
+        return this.buzz(userId);
+      case 'give-answer':
+        console.log('ScienceBowlRoom: Handling give-answer message');
+        return this.giveAnswer(userId, message);
       case 'toggle-show-history': return this.toggleShowHistory(userId, message);
       case 'toggle-timer': return this.toggleTimer(userId, message);
       case 'toggle-type-to-answer': return this.toggleTypeToAnswer(userId, message);
@@ -123,6 +129,12 @@ export default class ScienceBowlRoom extends QuestionRoom {
       return;
     }
 
+    // If someone has buzzed in, stop reading
+    if (this.buzzedIn) {
+      console.log('ScienceBowlRoom: Someone buzzed in, stopping question reading');
+      return;
+    }
+
     const word = this.questionSplit[this.wordIndex];
     this.wordIndex++;
     this.emitMessage({ type: 'update-question', word });
@@ -139,7 +151,7 @@ export default class ScienceBowlRoom extends QuestionRoom {
     const delay = time - Date.now() + expectedReadTime;
 
     this.timeoutID = setTimeout(() => {
-      if (!this.paused) {
+      if (!this.paused && !this.buzzedIn) {
         this.readQuestion(time + expectedReadTime);
       }
     }, delay);
@@ -207,6 +219,73 @@ export default class ScienceBowlRoom extends QuestionRoom {
     }
     
     this.emitMessage({ type: 'pause', paused: this.paused });
+    return true;
+  }
+
+  buzz(userId) {
+    console.log('ScienceBowlRoom: buzz() called');
+    if (!this.settings.rebuzz && this.buzzes?.includes(userId)) { 
+      console.log('ScienceBowlRoom: User already buzzed in');
+      return; 
+    }
+    if (this.tossupProgress !== 'READING') { 
+      console.log('ScienceBowlRoom: Question not in reading state');
+      return; 
+    }
+
+    const username = this.players[userId].username;
+    if (this.buzzedIn) {
+      console.log('ScienceBowlRoom: Someone already buzzed in');
+      this.emitMessage({ type: 'lost-buzzer-race', userId, username });
+      return;
+    }
+
+    // Stop question reading
+    clearTimeout(this.timeoutID);
+    this.buzzedIn = userId;
+    this.buzzes = this.buzzes || [];
+    this.buzzes.push(userId);
+    this.paused = false;
+
+    console.log('ScienceBowlRoom: Emitting buzz message');
+    this.emitMessage({ type: 'buzz', userId, username });
+    this.emitMessage({ type: 'update-question', word: '(#)' });
+
+    // Start answer timer
+    this.startServerTimer(
+      50, // 5 seconds for answer
+      (time) => this.emitMessage({ type: 'timer-update', timeRemaining: time }),
+      () => this.giveAnswer(userId, { givenAnswer: '' })
+    );
+  }
+
+  giveAnswer(userId, { givenAnswer }) {
+    console.log('ScienceBowlRoom: giveAnswer() called with answer:', givenAnswer);
+    if (typeof givenAnswer !== 'string') { 
+      console.log('ScienceBowlRoom: Invalid answer format');
+      return false; 
+    }
+    if (this.buzzedIn !== userId) { 
+      console.log('ScienceBowlRoom: User not buzzed in');
+      return false; 
+    }
+
+    // Clear any existing timers
+    clearTimeout(this.timeoutID);
+    clearInterval(this.timer?.interval);
+    this.emitMessage({ type: 'timer-update', timeRemaining: 0 });
+
+    // Reset buzzed in state
+    this.buzzedIn = null;
+    this.tossupProgress = 'ANSWER_REVEALED';
+
+    // Emit the answer
+    this.emitMessage({
+      type: 'reveal-answer',
+      question: this.questionSplit.join(' '),
+      answer: givenAnswer
+    });
+
     return true;
   }
 } 

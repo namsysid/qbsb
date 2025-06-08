@@ -234,9 +234,8 @@ function revealAnswer ({ answer, question }) {
 
   document.getElementById('buzz').disabled = true;
   document.getElementById('buzz').textContent = 'Buzz';
-  document.getElementById('next').disabled = false;
-  document.getElementById('next').textContent = 'Next';
   document.getElementById('start').disabled = false;
+  document.getElementById('start').textContent = 'Next';
 
   document.getElementById('toggle-correct').classList.remove('d-none');
   document.getElementById('toggle-correct').textContent = room.previous.isCorrect ? 'I was wrong' : 'I was right';

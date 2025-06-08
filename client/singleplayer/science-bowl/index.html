@@ -401,17 +401,85 @@
     <script type="module" src="/script.js"></script>
     <script type="module" src="index.min.js"></script>
     <script>
+        // Handle buzz and answer submission
+        document.getElementById('buzz').addEventListener('click', function() {
+            console.log('Buzz button clicked');
+            if (!window.room) {
+                console.error('Room not initialized');
+                return;
+            }
+            
+            // Send buzz message to room - let the room handle everything
+            window.room.message('user', { type: 'buzz' });
+        });
+
+        // Handle start/next button
+        document.getElementById('start').addEventListener('click', function() {
+            console.log('Start/Next button clicked');
+            if (!window.room) {
+                console.error('Room not initialized');
+                return;
+            }
+            
+            // Reset all states
+            window.room.buzzedIn = null;
+            window.room.buzzes = [];
+            window.room.tossupProgress = 'READING';
+            window.room.paused = false;
+            
+            // Reset UI elements
+            const buzzButton = document.getElementById('buzz');
+            const pauseButton = document.getElementById('pause');
+            const answerInput = document.getElementById('answer-input');
+            const answerInputGroup = document.getElementById('answer-input-group');
+            const toggleCorrectButton = document.getElementById('toggle-correct');
+            
+            // Enable/disable appropriate buttons
+            buzzButton.disabled = false;
+            buzzButton.textContent = 'Buzz';
+            pauseButton.disabled = false;
+            pauseButton.textContent = 'Pause';
+            
+            // Clear and hide answer input
+            answerInput.value = '';
+            answerInputGroup.classList.add('d-none');
+            
+            // Hide toggle correct button
+            toggleCorrectButton.classList.add('d-none');
+            
+            // Ensure categories are synced
+            window.room.query.subjects = window.room.categoryManager.categories;
+            console.log('Starting with categories:', window.room.categoryManager.categories);
+            
+            // Start new question
+            window.room.message('user', { type: 'start' });
+        });
+
         function handlePause() {
             console.log('Pause button clicked');
             if (!window.room) {
                 console.error('Room not initialized');
                 return;
             }
-            console.log('Current room state:', {
-                tossupProgress: window.room.tossupProgress,
-                wordIndex: window.room.wordIndex,
-                questionSplit: window.room.questionSplit?.length
-            });
+            
+            const buzzButton = document.getElementById('buzz');
+            const pauseButton = document.getElementById('pause');
+            
+            // Toggle pause state
+            const isPaused = pauseButton.textContent === 'Resume';
+            
+            if (isPaused) {
+                // Resuming - enable buzz button if we're in reading state
+                if (window.room.tossupProgress === 'READING') {
+                    buzzButton.disabled = false;
+                }
+                pauseButton.textContent = 'Pause';
+            } else {
+                // Pausing - disable buzz button
+                buzzButton.disabled = true;
+                pauseButton.textContent = 'Resume';
+            }
+            
             window.room.message('user', { type: 'pause' });
         }
 
@@ -422,6 +490,114 @@
                 console.log('Pause key pressed');
                 handlePause();
             }
+        });
+
+        // Handle answer submission
+        document.getElementById('answer-form').addEventListener('submit', function(event) {
+            event.preventDefault();
+            event.stopPropagation();
+            
+            const answer = document.getElementById('answer-input').value;
+            console.log('Answer submitted:', answer);
+            
+            if (!window.room) {
+                console.error('Room not initialized');
+                return;
+            }
+            
+            // Update UI first
+            const questionElement = document.getElementById('question');
+            const answerElement = document.getElementById('answer');
+            const pauseButton = document.getElementById('pause');
+            const buzzButton = document.getElementById('buzz');
+            const nextButton = document.getElementById('next');
+            const startButton = document.getElementById('start');
+            const toggleCorrectButton = document.getElementById('toggle-correct');
+            
+            if (questionElement && answerElement) {
+                questionElement.innerHTML = window.room.questionSplit.join(' ');
+                answerElement.innerHTML = 'ANSWER: ' + answer;
+            }
+            if (pauseButton) pauseButton.disabled = true;
+            if (buzzButton) {
+                buzzButton.disabled = true;
+                buzzButton.textContent = 'Buzz';
+            }
+            if (nextButton) {
+                nextButton.disabled = false;
+                nextButton.textContent = 'Next';
+            }
+            if (startButton) startButton.disabled = false;
+            if (toggleCorrectButton) {
+                toggleCorrectButton.classList.remove('d-none');
+                toggleCorrectButton.textContent = 'I was wrong';
+            }
+            
+            // Clear and hide input
+            document.getElementById('answer-input').value = '';
+            document.getElementById('answer-input-group').classList.add('d-none');
+            
+            // Send answer to room
+            window.room.message('user', { type: 'give-answer', givenAnswer: answer });
+        });
+
+        // Initialize room state
+        function initializeRoomState() {
+            if (!window.room) {
+                console.error('Room not initialized');
+                return;
+            }
+
+            // Store the original emitMessage method
+            const originalEmitMessage = window.room.emitMessage;
+            
+            // Override the emitMessage method to handle button states
+            window.room.emitMessage = function(message) {
+                console.log('Room emitting message:', message);
+                
+                // Handle reveal-answer message before calling original method
+                if (message.type === 'reveal-answer') {
+                    console.log('Handling reveal-answer message');
+                    const questionElement = document.getElementById('question');
+                    const answerElement = document.getElementById('answer');
+                    const pauseButton = document.getElementById('pause');
+                    const buzzButton = document.getElementById('buzz');
+                    const nextButton = document.getElementById('next');
+                    const startButton = document.getElementById('start');
+                    const toggleCorrectButton = document.getElementById('toggle-correct');
+                    
+                    if (questionElement && answerElement) {
+                        questionElement.innerHTML = message.question;
+                        answerElement.innerHTML = 'ANSWER: ' + message.answer;
+                    }
+                    if (pauseButton) pauseButton.disabled = true;
+                    if (buzzButton) {
+                        buzzButton.disabled = true;
+                        buzzButton.textContent = 'Buzz';
+                    }
+                    if (nextButton) {
+                        nextButton.disabled = false;
+                        nextButton.textContent = 'Next';
+                    }
+                    if (startButton) startButton.disabled = false;
+                    if (toggleCorrectButton) {
+                        toggleCorrectButton.classList.remove('d-none');
+                        toggleCorrectButton.textContent = this.previous.isCorrect ? 'I was wrong' : 'I was right';
+                    }
+                    
+                    // Don't call original method for reveal-answer
+                    return;
+                }
+                
+                // Call the original method for all other message types
+                originalEmitMessage.call(this, message);
+            };
+        }
+
+        // Initialize when DOM is loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('DOM loaded, initializing room state...');
+            initializeRoomState();
         });
 
         // Text-to-speech functionality
