@@ -444,12 +444,36 @@ function updateQuestion ({ word }) {
 
 // Make updateStatDisplay globally accessible
 window.updateStatDisplay = function() {
+  console.log('updateStatDisplay called');
+  console.log('Current room state:', {
+    room: window.room,
+    tossup: window.room?.tossup,
+    questionType: window.room?.tossup?.type,
+    isTossup: window.room?.tossup?.isTossup,
+    rawIsTossup: window.room?.tossup?.isTossup === false ? 'false' : 
+                 window.room?.tossup?.isTossup === true ? 'true' : 
+                 window.room?.tossup?.isTossup === undefined ? 'undefined' : 
+                 window.room?.tossup?.isTossup === null ? 'null' : 
+                 String(window.room?.tossup?.isTossup)
+  });
+
   // Get the current score from the statline element
   const statline = document.getElementById('statline');
   const currentScore = parseInt(statline.textContent.split(': ')[1]) || 0;
+  console.log('Current score:', currentScore);
   
-  // Increment score by 4 for correct answer
-  const newScore = currentScore + 4;
+  // Check if current question is a bonus
+  // A question is a bonus if isTossup is explicitly false
+  const isBonus = window.room?.tossup?.isTossup === false;
+  console.log('Is bonus question?', isBonus, 'because isTossup is:', window.room?.tossup?.isTossup);
+  
+  // Increment score by 10 for bonus, 4 for tossup
+  const pointsToAdd = isBonus ? 10 : 4;
+  console.log('Points to add:', pointsToAdd);
+  
+  const newScore = currentScore + pointsToAdd;
+  console.log('New score:', newScore);
+  
   statline.textContent = `SCORE: ${newScore}`;
 }
 
