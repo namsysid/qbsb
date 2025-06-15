@@ -1,6 +1,7 @@
 import { SBCATEGORIES } from '../../quizbowl/categories.js';
 import QuestionRoom from '../../quizbowl/QuestionRoom.js';
 import ScienceBowlCategoryManager from '../../quizbowl/ScienceBowlCategoryManager.js';
+import { validateAnswer } from './science-bowl/answer-validator.js';
 
 export default class ScienceBowlRoom extends QuestionRoom {
   constructor(name = 'science-bowl', subjects = SBCATEGORIES) {
@@ -175,6 +176,72 @@ export default class ScienceBowlRoom extends QuestionRoom {
 
     const word = this.questionSplit[this.wordIndex];
     this.wordIndex++;
+
+    // Special handling for multiple-choice questions
+    if (this.tossup?.is_mcq && this.tossup?.options) {
+      // If we've reached the end of the question text, display options
+      if (this.wordIndex >= this.questionSplit.length) {
+        // Emit the question text first
+        this.emitMessage({ type: 'update-question', word });
+        
+        // Add a small delay before showing options
+        this.optionTimeout0 = setTimeout(() => {
+          // If someone has buzzed in during the delay, don't show options
+          if (this.buzzedIn) {
+            console.log('ScienceBowlRoom: Someone buzzed in during delay, stopping options reading');
+            return;
+          }
+
+          // Emit each option with a delay
+          this.tossup.options.forEach((option, index) => {
+            this[`optionTimeout${index + 1}`] = setTimeout(() => {
+              // If someone has buzzed in during option reading, stop
+              if (this.buzzedIn) {
+                console.log('ScienceBowlRoom: Someone buzzed in during option reading, stopping');
+                return;
+              }
+
+              this.emitMessage({ 
+                type: 'update-question', 
+                word: `\n${option}` 
+              });
+              
+              // If this is the last option, start the timer
+              if (index === this.tossup.options.length - 1) {
+                this.optionTimeoutFinal = setTimeout(() => {
+                  if (!this.buzzedIn) {
+                    const timerDuration = this.tossup?.isTossup ? 50 : 200;
+                    this.startServerTimer(
+                      timerDuration,
+                      (time) => {
+                        if (time <= 0) {
+                          clearInterval(this.timer?.interval);
+                          this.emitMessage({ type: 'timer-update', timeRemaining: 0 });
+                          this.revealQuestion();
+                          return;
+                        }
+                        this.emitMessage({ type: 'timer-update', timeRemaining: time });
+                      },
+                      () => {
+                        this.tossupProgress = 'ANSWER_REVEALED';
+                        this.emitMessage({
+                          type: 'reveal-answer',
+                          question: this.questionSplit.join(' '),
+                          answer: '',
+                          correctAnswer: this.tossup?.answer
+                        });
+                      }
+                    );
+                  }
+                }, 1000); // Wait 1 second after the last option before starting timer
+              }
+            }, index * 1000); // 1 second delay between options
+          });
+        }, 1000);
+        return;
+      }
+    }
+
     this.emitMessage({ type: 'update-question', word });
 
     // Calculate time needed before reading next word
@@ -313,16 +380,72 @@ export default class ScienceBowlRoom extends QuestionRoom {
     clearInterval(this.timer?.interval);
     this.emitMessage({ type: 'timer-update', timeRemaining: 0 });
 
-    // Reset buzzed in state
+    // Reset buzzed in state and stop reading
     this.buzzedIn = null;
     this.tossupProgress = 'ANSWER_REVEALED';
+    
+    // Clear any pending option reading timeouts
+    if (this.tossup?.is_mcq && this.tossup?.options) {
+      // Clear all pending timeouts for options
+      clearTimeout(this.optionTimeout0);
+      for (let i = 0; i < this.tossup.options.length; i++) {
+        clearTimeout(this[`optionTimeout${i + 1}`]);
+      }
+      clearTimeout(this.optionTimeoutFinal);
+    }
 
-    // Emit the answer
+    // For multiple-choice questions, check both the letter and full answer
+    let isCorrect = false;
+    if (this.tossup?.is_mcq && this.tossup?.answer) {
+      console.log('Processing MCQ answer:', {
+        givenAnswer,
+        correctAnswer: this.tossup.answer,
+        isMcq: this.tossup.is_mcq
+      });
+      
+      // Extract the letter and full answer from the answer line
+      const answerMatch = this.tossup.answer.match(/^([A-Z])\)\s*(.+)$/);
+      console.log('Answer match result:', answerMatch);
+      
+      if (answerMatch) {
+        const [, letter, fullAnswer] = answerMatch;
+        console.log('Extracted answer parts:', { letter, fullAnswer });
+        
+        // Create a combined answer string with both letter and full answer
+        const combinedAnswer = `${letter} (ACCEPT: ${fullAnswer})`;
+        
+        // Use the validateAnswer function to check the answer
+        const validationResult = validateAnswer(givenAnswer, combinedAnswer, this.settings.strictness);
+        isCorrect = validationResult.isCorrect;
+        console.log('Final isCorrect result:', isCorrect);
+      }
+    }
+
+    // Store the result in previous
+    this.previous = {
+      ...this.previous,
+      isCorrect,
+      tossup: this.tossup,
+      userId
+    };
+
+    // Emit the answer with directive
     this.emitMessage({
       type: 'reveal-answer',
       question: this.questionSplit.join(' '),
       answer: givenAnswer,
-      correctAnswer: this.tossup?.answer
+      correctAnswer: this.tossup?.answer,
+      isCorrect,
+      directive: isCorrect ? 'accept' : 'reject'
+    });
+
+    // Also emit give-answer message with isCorrect
+    this.emitMessage({
+      type: 'give-answer',
+      directive: isCorrect ? 'accept' : 'reject',
+      isCorrect,
+      tossup: this.tossup,
+      userId
     });
 
     return true;

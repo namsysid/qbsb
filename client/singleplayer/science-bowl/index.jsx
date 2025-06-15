@@ -112,7 +112,7 @@ function endOfSet () {
   window.alert('You have reached the end of the set');
 }
 
-async function giveAnswer ({ directive, directedPrompt, perQuestionCelerity, score, tossup, userId }) {
+async function giveAnswer ({ directive, directedPrompt, perQuestionCelerity, score, tossup, userId, isCorrect }) {
   if (directive === 'prompt') {
     document.getElementById('answer-input-group').classList.remove('d-none');
     document.getElementById('answer-input').focus();
@@ -121,7 +121,12 @@ async function giveAnswer ({ directive, directedPrompt, perQuestionCelerity, sco
   }
 
   if (userId === USER_ID) {
-    updateStatDisplay({ ...room.players[USER_ID], directive });
+    // Update the player's score based on isCorrect
+    if (isCorrect) {
+      const pointValue = tossup?.isTossup ? 4 : 10; // 4 points for tossup, 10 for bonus
+      room.players[USER_ID].score += pointValue;
+      updateStatDisplay();
+    }
   } else if (aiBot.active) {
     upsertPlayerItem(aiBot.player);
   }
@@ -143,11 +148,9 @@ async function giveAnswer ({ directive, directedPrompt, perQuestionCelerity, sco
   }
 
   if (audio.soundEffects && userId === USER_ID) {
-    if (directive === 'accept' && score > 10) {
-      audio.power.play();
-    } else if (directive === 'accept' && score === 10) {
+    if (isCorrect) {
       audio.correct.play();
-    } else if (directive === 'reject') {
+    } else {
       audio.incorrect.play();
     }
   }
@@ -265,8 +268,8 @@ function pause ({ paused }) {
   }
 }
 
-function revealAnswer ({ answer, question, correctAnswer }) {
-  console.log('revealAnswer called with:', { answer, question, correctAnswer });
+function revealAnswer ({ answer, question, correctAnswer, isCorrect }) {
+  console.log('revealAnswer called with:', { answer, question, correctAnswer, isCorrect });
   
   const elements = {
     question: document.getElementById('question'),
@@ -324,7 +327,9 @@ function revealAnswer ({ answer, question, correctAnswer }) {
   }
   if (elements.toggleCorrect) {
     elements.toggleCorrect.classList.remove('d-none');
-    elements.toggleCorrect.textContent = room.previous.isCorrect ? 'I was wrong' : 'I was right';
+    // Use the isCorrect flag if provided, otherwise fall back to room.previous.isCorrect
+    const wasCorrect = isCorrect !== undefined ? isCorrect : room.previous.isCorrect;
+    elements.toggleCorrect.textContent = wasCorrect ? 'I was wrong' : 'I was right';
   }
 }
 
@@ -439,7 +444,22 @@ function toggleTypeToAnswer ({ typeToAnswer }) {
 }
 
 function updateQuestion ({ word }) {
-  document.getElementById('question').textContent += word + ' ';
+  const questionElement = document.getElementById('question');
+  if (!questionElement) return;
+
+  // If the word starts with a newline, it's a multiple-choice option
+  if (word.startsWith('\n')) {
+    // Add a line break before the option
+    questionElement.innerHTML += '<br>';
+    // Add the option text
+    questionElement.innerHTML += word.substring(1);
+  } else {
+    // For regular question text, add a space if needed
+    if (questionElement.innerHTML && !questionElement.innerHTML.endsWith(' ')) {
+      questionElement.innerHTML += ' ';
+    }
+    questionElement.innerHTML += word;
+  }
 }
 
 // Make updateStatDisplay globally accessible
