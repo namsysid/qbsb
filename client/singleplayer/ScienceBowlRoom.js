@@ -98,6 +98,11 @@ export default class ScienceBowlRoom extends QuestionRoom {
       return false;
     }
 
+    // Clear any running timers
+    clearTimeout(this.timeoutID);
+    clearInterval(this.timer?.interval);
+    this.emitMessage({ type: 'timer-update', timeRemaining: 0 });
+
     console.log('ScienceBowlRoom: next() called');
     const question = await this.advanceQuestion();
     console.log('ScienceBowlRoom: advanceQuestion returned:', question);
@@ -131,6 +136,34 @@ export default class ScienceBowlRoom extends QuestionRoom {
 
   async readQuestion(expectedReadTime) {
     if (!this.questionSplit || this.wordIndex >= this.questionSplit.length) {
+      // Start timer when question finishes reading
+      if (!this.buzzedIn) {
+        // Use 20 seconds for bonuses, 5 seconds for tossups
+        const timerDuration = this.tossup?.isTossup ? 50 : 200; // 5 seconds for tossups, 20 seconds for bonuses
+        this.startServerTimer(
+          timerDuration,
+          (time) => {
+            // Ensure timer doesn't get stuck at 0.1
+            if (time <= 0) {
+              clearInterval(this.timer?.interval);
+              this.emitMessage({ type: 'timer-update', timeRemaining: 0 });
+              this.revealQuestion();
+              return;
+            }
+            this.emitMessage({ type: 'timer-update', timeRemaining: time });
+          },
+          () => {
+            // When timer expires, reveal the question and answer
+            this.tossupProgress = 'ANSWER_REVEALED';
+            this.emitMessage({
+              type: 'reveal-answer',
+              question: this.questionSplit.join(' '),
+              answer: '',
+              correctAnswer: this.tossup?.answer
+            });
+          }
+        );
+      }
       return;
     }
 
@@ -256,9 +289,9 @@ export default class ScienceBowlRoom extends QuestionRoom {
     this.emitMessage({ type: 'buzz', userId, username });
     this.emitMessage({ type: 'update-question', word: '(#)' });
 
-    // Start answer timer
+    // Start 7-second answer timer
     this.startServerTimer(
-      50, // 5 seconds for answer
+      70, // 7 seconds for answer
       (time) => this.emitMessage({ type: 'timer-update', timeRemaining: time }),
       () => this.giveAnswer(userId, { givenAnswer: '' })
     );
