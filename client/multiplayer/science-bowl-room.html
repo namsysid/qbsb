@@ -1,0 +1,813 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <title>QB Reader - Science Bowl</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="A text-based science bowl packet reader to read questions to yourself.">
+
+    <link href="/apple-touch-icon.png" rel="apple-touch-icon">
+    <link href="/apple-touch-icon-precomposed.png" rel="apple-touch-icon-precomposed">
+    <link type="image/x-icon" href="/favicon.ico" rel="icon">
+
+    <link href="https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css" rel="stylesheet">
+    <script type="module" src="https://code.jquery.com/jquery-3.6.4.min.js"
+        integrity="sha256-oP6HI9z1XaZNBrJURtCoUT5SUnxFr8s3BzRl+cbzUq8=" crossorigin="anonymous"></script>
+    <script type="module" src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"
+        integrity="sha256-lSjKY0/srUM9BE3dPm+c4fBo1dky2v27Gdjm2uoZaL0=" crossorigin="anonymous"></script>
+    <link href="/bootstrap/light.css" rel="stylesheet">
+    <link id="custom-css" href="/bootstrap/dark.css" rel="stylesheet">
+    <script type="module" src="/scripts/apply-theme.js"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <style type="text/css">
+        .custom-popover {
+            width: 250px;
+        }
+    </style>
+</head>
+
+<body>
+    <nav class="navbar navbar-light navbar-expand-lg bg-custom" id="navbar" style="z-index: 10">
+        <div class="container-fluid">
+            <a class="navbar-brand ms-1 py-0" id="logo" href="/">
+                <span class="logo-prefix">QB</span><span class="logo-suffix">Reader</span>
+            </a>
+            <button class="navbar-toggler" data-bs-target="#navbarSupportedContent" data-bs-toggle="collapse" type="button"
+                aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarSupportedContent">
+                <div class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <a class="nav-link active" href="/singleplayer/" aria-current="page">Singleplayer</a>
+                    <a class="nav-link" href="/multiplayer/">Multiplayer</a>
+                    <a class="nav-link" href="/database/">Database</a>
+                    <a class="nav-link" href="/frequency-list/">Frequency List</a>
+                    <a class="nav-link" href="/geoword/">Geoword</a>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            Tools
+                        </a>
+                        <ul class="dropdown-menu">
+                            <a class="dropdown-item" href="/tools/api-docs/">API Docs</a>
+                            <a class="dropdown-item" href="/tools/packet-parser/">Packet Parser</a>
+                        </ul>
+                    </li>
+                    <a class="nav-link" href="/about/">About</a>
+                    <a class="nav-link" href="/settings/">Settings</a>
+                </div>
+                <div class="d-flex">
+                    <ul class="navbar-nav mb-2 mb-lg-0">
+                        <a class="nav-link" href="/user/login" id="login-link">Log in</a>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid mt-3 mb-5 pb-5 px-xxl-5">
+        <div class="toast-container position-fixed top-0 end-0 p-3">
+            <div id="star-toast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+                <div class="toast-header">
+                    <strong class="me-auto">You must be logged in to star questions.</strong>
+                    <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+                </div>
+            </div>
+        </div>
+        <div class="toast-container position-fixed top-0 end-0 p-3">
+            <div id="funny-toast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+                <div class="toast-header" style="background-color: yellow;">
+                    <h1 id="funny-toast-text" class="me-auto text-danger"></h1>
+                    <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+                </div>
+            </div>
+        </div>
+        <div class="row" id="info">
+            <div class="options d-lg-block col-12 col-lg-3 order-lg-1 mb-5" id="settings">
+                <div class="timer d-block p-1 text-center" id="timer">
+                    <span class="face">0</span><span class="fraction">.0</span>
+                </div>
+                <hr>
+                <ul class="list-group d-none" id="player-list-group"></ul>
+                <hr class="d-none" id="player-list-group-hr">
+                <label class="form-check-label mb-1" for="set-mode">Choose a mode:</label>
+                <select class="form-select mb-2" id="set-mode">
+                    <option value="select by set name">Select by Set Name</option>
+                    <option value="random questions" selected>Random Questions</option>
+                    <option value="starred questions">Starred Questions</option>
+                    <option value="local packet">Upload Local Packet</option>
+                </select>
+                <div class="d-none" id="local-packet-settings">
+                    You may need to <a href="/tools/packet-parser/">parse the packet here</a> into .json.
+                    To play a <a href="/database/">database search</a>, download the results as a .json file and upload it here!
+                    <input class="form-control" type="file" id="local-packet-input" accept=".json">
+                </div>
+                <div class="d-none" id="set-settings">
+                    <input class="form-control" id="set-name" type="text" placeholder="Set Name" list="set-list">
+                    <datalist id="set-list"></datalist>
+                    <input class="form-control my-1" id="packet-number" type="text" placeholder="Packet Numbers">
+                </div>
+                <div class="mt-2" id="general-settings">
+                    <div class="text-center mb-2">
+                        <button class="btn btn-info" id="ai-settings" data-bs-target="#ai-settings-modal" data-bs-toggle="modal"
+                            type="button" disabled>AI</button>
+                        <button class="btn btn-danger" id="category-select-button" data-bs-target="#category-modal-root"
+                            data-bs-toggle="modal" type="button">Categories</button>
+                        <button class="btn btn-warning" id="clear-stats" type="button">Clear Stats</button>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" id="toggle-ai-mode" type="checkbox" role="switch">
+                        <label class="form-check-label" for="toggle-ai-mode">Enable AI mode</label>
+                    </div>
+                    <hr>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" id="type-to-answer" type="checkbox" role="switch" checked>
+                        <label class="form-check-label" for="type-to-answer">Type to answer</label>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" id="toggle-rebuzz" type="checkbox" role="switch">
+                        <label class="form-check-label" for="toggle-rebuzz">Allow rebuzzes</label>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" id="toggle-show-history" type="checkbox" role="switch" checked>
+                        <label class="form-check-label" for="toggle-show-history">Show question history</label>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" id="toggle-timer" type="checkbox" role="switch" checked>
+                        <label class="form-check-label" for="toggle-timer">Enable timer</label>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" id="toggle-speech" type="checkbox" role="switch">
+                        <label class="form-check-label" for="toggle-speech">Enable text-to-speech</label>
+                    </div>
+                    <div class="mb-2"></div>
+                    <label for="reading-speed">Reading speed: <span id="reading-speed-display">50</span><br></label>
+                    <input class="form-range" id="reading-speed" type="range" min="0" max="100" step="5">
+                    <label for="set-strictness">Strictness: <span id="strictness-display">7</span><br></label>
+                    <input class="form-range" id="set-strictness" type="range" min="0" max="20" step="1" value="7">
+                    <div>
+                        View more settings <a href="/settings/">here</a>.
+                    </div>
+                    <div class="d-none d-lg-block">
+                        <hr>
+                        <p>
+                            <span class="text-nowrap"><kbd>k</kbd> = show/hide last question</span><br>
+                            <span class="text-nowrap"><kbd>t</kbd> = star/unstar last question</span><br>
+                            <span class="text-nowrap"><kbd>y</kbd> = copy current question id to clipboard</span><br>
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 col-lg-9" id="content">
+                <form id="answer-form">
+                    <!-- User enters answer here -->
+                    <div class="d-flex justify-content-between mb-3">
+                        <span id="statline">SCORE: 0</span>
+                        <span class="ps-5 me-lg-2" id="question-metadata">
+                            <b id="question-info">
+                                <span id="set-name-info"></span>
+                                Packet <span id="packet-number-info">-</span>
+                                Question <span id="question-number-info">-</span>
+                                of <span id="packet-length-info">-</span>
+                            </b>
+                        </span>
+                    </div>
+                    <div id="question" class="mb-3"></div>
+                    <div id="answer-display" class="mb-3"></div>
+                    <div id="user-answer" class="mb-3"></div>
+                    <div id="answer-input-group" class="input-group mb-3 d-none">
+                        <input class="form-control" id="answer-input" type="text" placeholder="Enter answer" autocomplete="off">
+                        <button class="btn btn-success" id="answer-submit" type="submit">Submit</button>
+                    </div>
+                </form>
+                <ul class="room-history list-unstyled" id="room-history"></ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="container-fluid py-3 px-xxl-5 position-fixed bottom-0 bg-body">
+        <div class="row">
+            <div class="col-12 col-lg-9" id="buttons">
+                <button class="btn btn-primary" id="start" onclick="console.log('Start button clicked. Current categories:', window.room.categoryManager.categories); console.log('Current query:', window.room.query); window.room.query.subjects = window.room.categoryManager.categories; console.log('Starting with categories:', window.room.categoryManager.categories); document.getElementById('answer-display').textContent = ''; document.getElementById('user-answer').textContent = ''; window.room.message('user', { type: 'start' });">Start/Next</button>
+                <button class="btn btn-primary" id="pause" data-bs-placement="top" data-bs-toggle="tooltip" type="button"
+                    title="Shortcut: p key" onclick="handlePause()">Pause</button>
+                <button class="btn btn-danger" id="toggle-settings" data-bs-placement="top" data-bs-toggle="tooltip" type="button"
+                    title="Shortcut: e key" type="button">
+                    <div class="d-flex align-items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="bi bi-gear"
+                            viewBox="0 0 16 16">
+                            <path
+                                d="M8 4.754a3.246 3.246 0 1 0 0 6.492 3.246 3.246 0 0 0 0-6.492M5.754 8a2.246 2.246 0 1 1 4.492 0 2.246 2.246 0 0 1-4.492 0" />
+                            <path
+                                d="M9.796 1.343c-.527-1.79-3.065-1.79-3.592 0l-.094.319a.873.873 0 0 1-1.255.52l-.292-.16c-1.64-.892-3.433.902-2.54 2.541l.159.292a.873.873 0 0 1-.52 1.255l-.319.094c-1.79.527-1.79 3.065 0 3.592l.319.094a.873.873 0 0 1 .52 1.255l-.16.292c-.892 1.64.901 3.434 2.541 2.54l.292-.159a.873.873 0 0 1 1.255.52l.094.319c.527 1.79 3.065 1.79 3.592 0l.094-.319a.873.873 0 0 1 1.255-.52l.292.16c1.64.893 3.434-.902 2.54-2.541l-.159-.292a.873.873 0 0 1 .52-1.255l.319-.094c1.79-.527 1.79-3.065 0-3.592l-.319-.094a.873.873 0 0 1-.52-1.255l.16-.292c.893-1.64-.902-3.433-2.541-2.54l-.292.159a.873.873 0 0 1-1.255-.52zm-2.633.283c.246-.835 1.428-.835 1.674 0l.094.319a1.873 1.873 0 0 0 2.693 1.115l.291-.16c.764-.415 1.6.42 1.184 1.185l-.159.292a1.873 1.873 0 0 0 1.116 2.692l.318.094c.835.246.835 1.428 0 1.674l-.319.094a1.873 1.873 0 0 0-1.115 2.693l.16.291c.415.764-.42 1.6-1.185 1.184l-.291-.159a1.873 1.873 0 0 0-2.693 1.116l-.094.318c-.246.835-1.428.835-1.674 0l-.094-.319a1.873 1.873 0 0 0-2.692-1.115l-.292.16c-.764.415-1.6-.42-1.184-1.185l.159-.291A1.873 1.873 0 0 0 1.945 8.93l-.319-.094c-.835-.246-.835-1.428 0-1.674l.319-.094A1.873 1.873 0 0 0 3.06 4.377l-.16-.292c-.415-.764.42-1.6 1.185-1.184l.292.159a1.873 1.873 0 0 0 2.692-1.115l.094-.319z" />
+                        </svg>
+                    </div>
+                </button>
+                <button class="btn btn-primary" id="buzz" data-bs-placement="top" data-bs-toggle="tooltip" type="button"
+                    title="Shortcut: space key" disabled>Buzz</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="category-modal-root" tabindex="-1" aria-labelledby="category-modal-label" onclick="console.log('Modal clicked')">
+      <div class="modal-dialog modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title me-2" id="category-modal-label">Select Categories</h5>
+            <button class="btn btn-primary me-1" id="toggle-all" onclick="console.log('Toggle all clicked. Current categories:', window.room.categoryManager.categories); window.room.categoryManager.import(window.room.categoryManager.categories.length === 0 ? {categories: ['MATH', 'PHYSICS', 'CHEMISTRY', 'BIOLOGY', 'EARTH AND SPACE', 'ENERGY']} : {}); window.room.categoryManager.loadCategoryModal(); window.room.query.subjects = window.room.categoryManager.categories; window.localStorage.setItem('singleplayer-science-bowl-categories', JSON.stringify({...window.room.categoryManager.export(), version: '2025-05-07'})); document.querySelectorAll('.category-checkbox').forEach(checkbox => checkbox.checked = window.room.categoryManager.categories.includes(checkbox.id));">Toggle all</button>
+            <button class="btn btn-primary" id="toggle-percent-view" onclick="console.log('Percent view clicked. Current categories:', window.room.categoryManager.categories); window.room.categoryManager.percentView = !window.room.categoryManager.percentView; window.room.categoryManager.loadCategoryModal(); window.localStorage.setItem('singleplayer-science-bowl-categories', JSON.stringify({...window.room.categoryManager.export(), version: '2025-05-07'})); document.querySelectorAll('.category-checkbox').forEach(checkbox => checkbox.checked = window.room.categoryManager.categories.includes(checkbox.id));">% view</button>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <div class="row" id="non-percent-view">
+              <div class="col-12" id="categories">
+                <h5 class="text-center">Category</h5>
+                <div>
+                  <input type="checkbox" class="btn-check category-checkbox" autocomplete="off" id="MATH" onclick="console.log('Category checkbox clicked: MATH. Current categories:', window.room.categoryManager.categories); window.room.categoryManager.updateCategory('MATH'); window.room.categoryManager.loadCategoryModal(); window.room.query.subjects = window.room.categoryManager.categories; window.localStorage.setItem('singleplayer-science-bowl-categories', JSON.stringify({...window.room.categoryManager.export(), version: '2025-05-07'})); document.querySelectorAll('.category-checkbox').forEach(checkbox => checkbox.checked = window.room.categoryManager.categories.includes(checkbox.id));">
+                  <label class="btn btn-outline-primary w-100 rounded-0 my-1" for="MATH">MATH<br></label>
+                </div>
+                <div>
+                  <input type="checkbox" class="btn-check category-checkbox" autocomplete="off" id="PHYSICS" onclick="console.log('Category checkbox clicked: PHYSICS. Current categories:', window.room.categoryManager.categories); window.room.categoryManager.updateCategory('PHYSICS'); window.room.categoryManager.loadCategoryModal(); window.room.query.subjects = window.room.categoryManager.categories; window.localStorage.setItem('singleplayer-science-bowl-categories', JSON.stringify({...window.room.categoryManager.export(), version: '2025-05-07'})); document.querySelectorAll('.category-checkbox').forEach(checkbox => checkbox.checked = window.room.categoryManager.categories.includes(checkbox.id));">
+                  <label class="btn btn-outline-danger w-100 rounded-0 my-1" for="PHYSICS">PHYSICS<br></label>
+                </div>
+                <div>
+                  <input type="checkbox" class="btn-check category-checkbox" autocomplete="off" id="CHEMISTRY" onclick="console.log('Category checkbox clicked: CHEMISTRY. Current categories:', window.room.categoryManager.categories); window.room.categoryManager.updateCategory('CHEMISTRY'); window.room.categoryManager.loadCategoryModal(); window.room.query.subjects = window.room.categoryManager.categories; window.localStorage.setItem('singleplayer-science-bowl-categories', JSON.stringify({...window.room.categoryManager.export(), version: '2025-05-07'})); document.querySelectorAll('.category-checkbox').forEach(checkbox => checkbox.checked = window.room.categoryManager.categories.includes(checkbox.id));">
+                  <label class="btn btn-outline-warning w-100 rounded-0 my-1" for="CHEMISTRY">CHEMISTRY<br></label>
+                </div>
+                <div>
+                  <input type="checkbox" class="btn-check category-checkbox" autocomplete="off" id="BIOLOGY" onclick="console.log('Category checkbox clicked: BIOLOGY. Current categories:', window.room.categoryManager.categories); window.room.categoryManager.updateCategory('BIOLOGY'); window.room.categoryManager.loadCategoryModal(); window.room.query.subjects = window.room.categoryManager.categories; window.localStorage.setItem('singleplayer-science-bowl-categories', JSON.stringify({...window.room.categoryManager.export(), version: '2025-05-07'})); document.querySelectorAll('.category-checkbox').forEach(checkbox => checkbox.checked = window.room.categoryManager.categories.includes(checkbox.id));">
+                  <label class="btn btn-outline-success w-100 rounded-0 my-1" for="BIOLOGY">BIOLOGY<br></label>
+                </div>
+                <div>
+                  <input type="checkbox" class="btn-check category-checkbox" autocomplete="off" id="EARTH AND SPACE" onclick="console.log('Category checkbox clicked: EARTH AND SPACE. Current categories:', window.room.categoryManager.categories); window.room.categoryManager.updateCategory('EARTH AND SPACE'); window.room.categoryManager.loadCategoryModal(); window.room.query.subjects = window.room.categoryManager.categories; window.localStorage.setItem('singleplayer-science-bowl-categories', JSON.stringify({...window.room.categoryManager.export(), version: '2025-05-07'})); document.querySelectorAll('.category-checkbox').forEach(checkbox => checkbox.checked = window.room.categoryManager.categories.includes(checkbox.id));">
+                  <label class="btn btn-outline-info w-100 rounded-0 my-1" for="EARTH AND SPACE">EARTH AND SPACE<br></label>
+                </div>
+                <div>
+                  <input type="checkbox" class="btn-check category-checkbox" autocomplete="off" id="ENERGY" onclick="console.log('Category checkbox clicked: ENERGY. Current categories:', window.room.categoryManager.categories); window.room.categoryManager.updateCategory('ENERGY'); window.room.categoryManager.loadCategoryModal(); window.room.query.subjects = window.room.categoryManager.categories; window.localStorage.setItem('singleplayer-science-bowl-categories', JSON.stringify({...window.room.categoryManager.export(), version: '2025-05-07'})); document.querySelectorAll('.category-checkbox').forEach(checkbox => checkbox.checked = window.room.categoryManager.categories.includes(checkbox.id));">
+                  <label class="btn btn-outline-secondary w-100 rounded-0 my-1" for="ENERGY">ENERGY<br></label>
+                </div>
+              </div>
+            </div>
+            <div class="row d-none" id="percent-view">
+              <div class="col-12">
+                <table class="table">
+                  <tbody>
+                    <tr>
+                      <th style="width: 50%">MATH</th>
+                      <td style="width: 50%">
+                        <span class="font-monospace me-1 category-percent">0%</span>
+                        <div class="btn-group btn-group-sm me-1" role="group">
+                          <button type="button" class="btn btn-outline-secondary">-</button>
+                          <button type="button" class="btn btn-outline-secondary">+</button>
+                        </div>
+                        <div class="btn-group btn-group-sm" role="group">
+                          <button type="button" class="btn btn-outline-secondary">Min</button>
+                          <button type="button" class="btn btn-outline-secondary">50%</button>
+                          <button type="button" class="btn btn-outline-secondary">Max</button>
+                        </div>
+                      </td>
+                    </tr>
+                    <tr>
+                      <th>PHYSICS</th>
+                      <td>
+                        <span class="font-monospace me-1 category-percent">0%</span>
+                        <div class="btn-group btn-group-sm me-1" role="group">
+                          <button type="button" class="btn btn-outline-secondary">-</button>
+                          <button type="button" class="btn btn-outline-secondary">+</button>
+                        </div>
+                        <div class="btn-group btn-group-sm" role="group">
+                          <button type="button" class="btn btn-outline-secondary">Min</button>
+                          <button type="button" class="btn btn-outline-secondary">50%</button>
+                          <button type="button" class="btn btn-outline-secondary">Max</button>
+                        </div>
+                      </td>
+                    </tr>
+                    <tr>
+                      <th>CHEMISTRY</th>
+                      <td>
+                        <span class="font-monospace me-1 category-percent">0%</span>
+                        <div class="btn-group btn-group-sm me-1" role="group">
+                          <button type="button" class="btn btn-outline-secondary">-</button>
+                          <button type="button" class="btn btn-outline-secondary">+</button>
+                        </div>
+                        <div class="btn-group btn-group-sm" role="group">
+                          <button type="button" class="btn btn-outline-secondary">Min</button>
+                          <button type="button" class="btn btn-outline-secondary">50%</button>
+                          <button type="button" class="btn btn-outline-secondary">Max</button>
+                        </div>
+                      </td>
+                    </tr>
+                    <tr>
+                      <th>BIOLOGY</th>
+                      <td>
+                        <span class="font-monospace me-1 category-percent">0%</span>
+                        <div class="btn-group btn-group-sm me-1" role="group">
+                          <button type="button" class="btn btn-outline-secondary">-</button>
+                          <button type="button" class="btn btn-outline-secondary">+</button>
+                        </div>
+                        <div class="btn-group btn-group-sm" role="group">
+                          <button type="button" class="btn btn-outline-secondary">Min</button>
+                          <button type="button" class="btn btn-outline-secondary">50%</button>
+                          <button type="button" class="btn btn-outline-secondary">Max</button>
+                        </div>
+                      </td>
+                    </tr>
+                    <tr>
+                      <th>EARTH AND SPACE</th>
+                      <td>
+                        <span class="font-monospace me-1 category-percent">0%</span>
+                        <div class="btn-group btn-group-sm me-1" role="group">
+                          <button type="button" class="btn btn-outline-secondary">-</button>
+                          <button type="button" class="btn btn-outline-secondary">+</button>
+                        </div>
+                        <div class="btn-group btn-group-sm" role="group">
+                          <button type="button" class="btn btn-outline-secondary">Min</button>
+                          <button type="button" class="btn btn-outline-secondary">50%</button>
+                          <button type="button" class="btn btn-outline-secondary">Max</button>
+                        </div>
+                      </td>
+                    </tr>
+                    <tr>
+                      <th>ENERGY</th>
+                      <td>
+                        <span class="font-monospace me-1 category-percent">0%</span>
+                        <div class="btn-group btn-group-sm me-1" role="group">
+                          <button type="button" class="btn btn-outline-secondary">-</button>
+                          <button type="button" class="btn btn-outline-secondary">+</button>
+                        </div>
+                        <div class="btn-group btn-group-sm" role="group">
+                          <button type="button" class="btn btn-outline-secondary">Min</button>
+                          <button type="button" class="btn btn-outline-secondary">50%</button>
+                          <button type="button" class="btn btn-outline-secondary">Max</button>
+                        </div>
+                      </td>
+                    </tr>
+                    <tr>
+                      <th>Total Percent:</th>
+                      <td class="font-monospace">
+                        <span class="me-1">0%</span>
+                        <button type="button" class="btn btn-sm btn-outline-secondary">Reset</button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal" id="ai-settings-modal">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">AI Settings</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Choose an AI:</p>
+                    <form id="choose-ai"></form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="report-question-modal" tabindex="-3">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Report Question</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Please describe the issue with this question:</p>
+                    <textarea class="form-control" id="report-question-text" rows="3"></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" id="report-question-submit">Submit</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="/bootstrap/bootstrap.bundle.min.js"></script>
+    <script type="module" src="/script.js"></script>
+    <script type="module" src="index.min.js"></script>
+    <script>
+        // Initialize updateStatDisplay if not already defined
+        if (typeof window.updateStatDisplay !== 'function') {
+            window.updateStatDisplay = function() {
+                const statline = document.getElementById('statline');
+                const currentScore = parseInt(statline.textContent.split(': ')[1]) || 0;
+                const newScore = currentScore + 4;
+                statline.textContent = `SCORE: ${newScore}`;
+            };
+        }
+
+        // Global function for pause button
+        function handlePause() {
+            console.log('Pause button clicked');
+            if (!window.room) {
+                console.error('Room not initialized');
+                return;
+            }
+            
+            const buzzButton = document.getElementById('buzz');
+            const pauseButton = document.getElementById('pause');
+            
+            // Toggle pause state
+            const isPaused = pauseButton.textContent === 'Resume';
+            
+            if (isPaused) {
+                // Resuming - enable buzz button if we're in reading state
+                if (window.room.tossupProgress === 'READING') {
+                    buzzButton.disabled = false;
+                }
+                pauseButton.textContent = 'Pause';
+            } else {
+                // Pausing - disable buzz button
+                buzzButton.disabled = true;
+                pauseButton.textContent = 'Resume';
+            }
+            
+            window.room.message('user', { type: 'pause' });
+        }
+    </script>
+    <script type="module">
+        import { validateAnswer, formatValidationResult } from './answer-validator.js';
+        
+        // Handle buzz and answer submission
+        document.getElementById('buzz').addEventListener('click', function() {
+            console.log('Buzz button clicked');
+            if (!window.room) {
+                console.error('Room not initialized');
+                return;
+            }
+            
+            // Stop any ongoing speech
+            if (speechSynthesis.speaking) {
+                console.log('Stopping speech synthesis on buzz');
+                speechSynthesis.cancel();
+                currentUtterance = null;
+                isPaused = false;
+            }
+            
+            // Send buzz message to room - let the room handle everything
+            window.room.message('user', { type: 'buzz' });
+        });
+
+        // Handle start/next button
+        document.getElementById('start').addEventListener('click', function() {
+            console.log('Start/Next button clicked');
+            if (!window.room) {
+                console.error('Room not initialized');
+                return;
+            }
+            
+            // Reset all states
+            window.room.buzzedIn = null;
+            window.room.buzzes = [];
+            window.room.tossupProgress = 'READING';
+            window.room.paused = false;
+            
+            // Reset UI elements
+            const buzzButton = document.getElementById('buzz');
+            const pauseButton = document.getElementById('pause');
+            const answerInput = document.getElementById('answer-input');
+            const answerInputGroup = document.getElementById('answer-input-group');
+            const toggleCorrectButton = document.getElementById('toggle-correct');
+            const answerDisplay = document.getElementById('answer-display');
+            const userAnswer = document.getElementById('user-answer');
+            const answer = document.getElementById('answer');
+            
+            // Enable/disable appropriate buttons
+            buzzButton.disabled = false;
+            buzzButton.textContent = 'Buzz';
+            pauseButton.disabled = false;
+            pauseButton.textContent = 'Pause';
+            
+            // Clear and hide answer input
+            answerInput.value = '';
+            answerInputGroup.classList.add('d-none');
+            
+            // Hide toggle correct button and clear answer displays
+            toggleCorrectButton.classList.add('d-none');
+            if (answerDisplay) answerDisplay.innerHTML = '';
+            if (userAnswer) userAnswer.innerHTML = '';
+            if (answer) answer.innerHTML = '';
+            
+            // Ensure categories are synced
+            window.room.query.subjects = window.room.categoryManager.categories;
+            console.log('Starting with categories:', window.room.categoryManager.categories);
+            
+            // Start new question
+            window.room.message('user', { type: 'start' });
+        });
+
+        // Add keyboard shortcut for pause
+        document.addEventListener('keydown', (e) => {
+            if (e.target.tagName === 'INPUT') return;
+            if (e.key === 'p') {
+                console.log('Pause key pressed');
+                handlePause();
+            }
+        });
+
+        // Handle answer submission
+        document.getElementById('answer-form').addEventListener('submit', function(event) {
+            event.preventDefault();
+            event.stopPropagation();
+            
+            const answer = document.getElementById('answer-input').value;
+            console.log('Answer submitted:', answer);
+            
+            if (!window.room) {
+                console.error('Room not initialized');
+                return;
+            }
+
+            // Get the current question's correct answer
+            const correctAnswer = window.room.tossup?.answer;
+            console.log('Attempting to get correct answer:', {
+                correctAnswer,
+                tossup: window.room.tossup
+            });
+
+            if (!correctAnswer) {
+                console.error('No correct answer available for current question');
+                return;
+            }
+            
+            // Get the current strictness setting
+            const strictness = parseInt(document.getElementById('set-strictness').value) || 7;
+            
+            // Validate the answer
+            const validationResult = validateAnswer(answer, correctAnswer, strictness);
+            console.log('Answer validation result:', validationResult);
+            
+            // If answer is correct, update the score
+            if (validationResult.isCorrect) {
+                updateStatDisplay();
+            }
+            
+            // Call revealAnswer with the necessary data
+            revealAnswer({
+                type: 'reveal-answer',
+                question: window.room.questionSplit.join(' '),
+                answer: answer,
+                correctAnswer: correctAnswer
+            });
+            
+            // Clear and hide input
+            document.getElementById('answer-input').value = '';
+            document.getElementById('answer-input-group').classList.add('d-none');
+            
+            // Send answer to room with validation result
+            window.room.message('user', { 
+                type: 'give-answer', 
+                givenAnswer: answer,
+                isCorrect: validationResult.isCorrect,
+                matchType: validationResult.matchType
+            });
+        });
+
+        // Initialize room state
+        function initializeRoomState() {
+            if (!window.room) {
+                console.error('Room not initialized');
+                return;
+            }
+
+            // Store the original emitMessage method
+            const originalEmitMessage = window.room.emitMessage;
+            
+            // Override the emitMessage method to handle button states
+            window.room.emitMessage = function(message) {
+                console.log('Room emitting message:', message);
+                
+                // Store the question object when it's emitted
+                if (message.type === 'question') {
+                    console.log('Storing question object:', message.question);
+                    this.tossup = message.question;
+                    window.room.tossup = message.question;
+                }
+                
+                // Handle reveal-answer message before calling original method
+                if (message.type === 'reveal-answer') {
+                    console.log('Handling reveal-answer message:', message);
+                    revealAnswer(message);
+                    return;
+                }
+                
+                // Call the original method for all other message types
+                originalEmitMessage.call(this, message);
+            };
+        }
+
+        // Initialize when DOM is loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('DOM loaded, initializing room state...');
+            initializeRoomState();
+        });
+
+        // Text-to-speech functionality
+        let speechSynthesis = window.speechSynthesis;
+        let speechEnabled = false;
+        let currentUtterance = null;
+        let originalWordIndex = 0;
+        let isPaused = false;
+
+        // Function to stop current speech
+        function stopCurrentSpeech() {
+            if (currentUtterance) {
+                console.log('Stopping current speech');
+                speechSynthesis.cancel();
+                currentUtterance = null;
+                isPaused = false;
+            }
+        }
+
+        // Function to update question display
+        function updateQuestionDisplay(text) {
+            const questionElement = document.getElementById('question');
+            if (questionElement) {
+                questionElement.innerHTML = text;
+            }
+        }
+
+        // Wait for room to be initialized
+        function initializeSpeechSynthesis() {
+            if (!window.room) {
+                console.log('Room not initialized yet, retrying in 500ms...');
+                setTimeout(initializeSpeechSynthesis, 500);
+                return;
+            }
+
+            console.log('Room initialized, setting up speech synthesis...');
+            
+            // Store the original readQuestion method
+            const originalReadQuestion = window.room.readQuestion;
+            
+            // Override the readQuestion method
+            window.room.readQuestion = function(timestamp) {
+                console.log('readQuestion called with:', {
+                    speechEnabled,
+                    wordIndex: this.wordIndex,
+                    tossupProgress: this.tossupProgress,
+                    questionSplit: this.questionSplit?.length
+                });
+
+                if (speechEnabled) {
+                    // If speech is enabled, pause the text display
+                    if (this.wordIndex === 0 || this.tossupProgress === 'READING') {
+                        // Store the original word index when starting speech
+                        originalWordIndex = 0;
+                        // Display audio mode message
+                        updateQuestionDisplay('<div class="alert alert-info">Reading question in audio mode, please turn up volume</div>');
+                        
+                        // Only start speech if we have a question and no speech is currently playing
+                        if (this.questionSplit && this.questionSplit.length > 0 && !speechSynthesis.speaking) {
+                            console.log('Starting speech with question:', this.questionSplit.join(' '));
+                            // Read the entire question
+                            const fullQuestion = this.questionSplit.join(' ');
+                            currentUtterance = new SpeechSynthesisUtterance(fullQuestion);
+                            currentUtterance.rate = 1.0;
+                            
+                            // Add event listeners for speech synthesis
+                            currentUtterance.onstart = () => {
+                                console.log('Speech started');
+                            };
+                            
+                            currentUtterance.onend = () => {
+                                console.log('Speech ended');
+                                // When speech ends, restore the original reading functionality
+                                speechEnabled = false;
+                                document.getElementById('toggle-speech').checked = false;
+                                this.wordIndex = originalWordIndex;
+                                originalReadQuestion.call(this, timestamp);
+                            };
+                            
+                            currentUtterance.onerror = (event) => {
+                                console.error('Speech synthesis error:', event);
+                            };
+                            
+                            // Ensure we're not in a paused state
+                            isPaused = false;
+                            speechSynthesis.cancel(); // Cancel any existing speech
+                            speechSynthesis.speak(currentUtterance);
+                        } else {
+                            console.log('No question available for speech or speech already in progress');
+                        }
+                    }
+                } else {
+                    // If speech is disabled, use the original reading method
+                    originalReadQuestion.call(this, timestamp);
+                }
+            };
+
+            // Store the original message method
+            const originalMessage = window.room.message;
+            
+            // Override the message method
+            window.room.message = function(type, data) {
+                console.log('Message received:', { type, data });
+                
+                // Call the original method first
+                originalMessage.call(this, type, data);
+                
+                // Handle different message types
+                if (type === 'user') {
+                    if (data.type === 'pause') {
+                        // Handle pause/resume
+                        if (speechEnabled) {
+                            if (!isPaused) {
+                                console.log('Pausing speech synthesis');
+                                speechSynthesis.pause();
+                                isPaused = true;
+                                updateQuestionDisplay('<div class="alert alert-warning">Audio paused</div>');
+                            } else {
+                                console.log('Resuming speech synthesis');
+                                speechSynthesis.resume();
+                                isPaused = false;
+                                updateQuestionDisplay('<div class="alert alert-info">Reading question in audio mode, please turn up volume</div>');
+                            }
+                        }
+                    } else if (data.type === 'start' || data.type === 'next') {
+                        console.log('Start/Next button pressed');
+                        // Stop current speech when starting/next question
+                        stopCurrentSpeech();
+                    }
+                }
+            };
+        }
+
+        // Initialize speech synthesis when the page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('DOM loaded, initializing speech synthesis...');
+            initializeSpeechSynthesis();
+        });
+
+        // Handle speech toggle
+        document.getElementById('toggle-speech').addEventListener('change', function(e) {
+            console.log('Speech toggle changed:', e.target.checked);
+            speechEnabled = e.target.checked;
+            if (!speechEnabled) {
+                stopCurrentSpeech();
+            }
+        });
+
+        function revealAnswer (message) {
+            console.log('revealAnswer called with message:', message);
+            const { answer, question, correctAnswer } = message;
+            console.log('Destructured values:', { answer, question, correctAnswer });
+            
+            // Try both old and new element IDs
+            const questionElement = document.getElementById('question');
+            const answerElement = document.getElementById('answer-display') || document.getElementById('answer');
+            const userAnswerElement = document.getElementById('user-answer');
+            const pauseButton = document.getElementById('pause');
+            const buzzButton = document.getElementById('buzz');
+            const nextButton = document.getElementById('next');
+            const startButton = document.getElementById('start');
+            const toggleCorrectButton = document.getElementById('toggle-correct');
+            
+            if (questionElement && answerElement) {
+                console.log('Setting question and answer elements');
+                questionElement.innerHTML = question;
+                // Use the correct answer from the tossup if available
+                const finalCorrectAnswer = correctAnswer || (window.room?.tossup?.answer);
+                console.log('Using correct answer:', finalCorrectAnswer);
+                answerElement.innerHTML = 'ANSWER: ' + finalCorrectAnswer;
+                if (userAnswerElement) {
+                    userAnswerElement.innerHTML = 'YOUR ANSWER: ' + answer;
+                }
+            } else {
+                console.log('Question or answer element not found:', { questionElement, answerElement });
+            }
+            
+            if (pauseButton) pauseButton.disabled = true;
+            if (buzzButton) {
+                buzzButton.disabled = true;
+                buzzButton.textContent = 'Buzz';
+            }
+            if (nextButton) {
+                nextButton.disabled = false;
+                nextButton.textContent = 'Next';
+            }
+            if (startButton) startButton.disabled = false;
+            if (toggleCorrectButton) {
+                toggleCorrectButton.classList.remove('d-none');
+                toggleCorrectButton.textContent = room.previous.isCorrect ? 'I was wrong' : 'I was right';
+            }
+        }
+    </script>
+</body>
+
+</html>

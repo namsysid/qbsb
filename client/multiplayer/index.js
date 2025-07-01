@@ -22,7 +22,12 @@ document.getElementById('form').addEventListener('submit', (event) => {
   if (isPrivate) params.set('private', 'true');
   if (isControlled) params.set('controlled', 'true');
 
-  window.location.href = `/multiplayer/${encodeURIComponent(roomName)}?${params.toString()}`;
+    const roomType = document.getElementById('room-type').value;
+  if (roomType === 'Science Bowl') {
+    window.location.href = `/multiplayer/science-bowl-room.html?roomName=${encodeURIComponent(roomName)}`;
+  } else {
+    window.location.href = `/multiplayer/${encodeURIComponent(roomName)}?${params.toString()}`;
+  }
 });
 
 fetch('/api/multiplayer/room-list')
