@@ -197,6 +197,9 @@ async function next ({ packetLength, oldTossup, tossup: nextTossup, type }) {
     elements.toggleCorrect.textContent = 'I was wrong';
     elements.toggleCorrect.classList.add('d-none');
   }
+  
+  // Hide AI help section when starting new question
+  hideAIHelpSection();
 
   // Hide answer input if it's visible
   const answerInputGroup = document.getElementById('answer-input-group');
@@ -331,6 +334,10 @@ function revealAnswer ({ answer, question, correctAnswer, isCorrect }) {
     const wasCorrect = isCorrect !== undefined ? isCorrect : room.previous.isCorrect;
     elements.toggleCorrect.textContent = wasCorrect ? 'I was wrong' : 'I was right';
   }
+  
+  // Show AI help section when answer is revealed
+  console.log('About to show AI help section from revealAnswer');
+  showAIHelpSection();
 }
 
 function setCategories ({ alternateSubcategories, categories, subcategories, percentView, categoryPercents }) {
@@ -460,6 +467,9 @@ function updateQuestion ({ word }) {
     }
     questionElement.innerHTML += word;
   }
+  
+  // Don't show AI help section here - wait until answer is revealed
+  // console.log('updateQuestion called - NOT showing AI help yet');
 }
 
 // Make updateStatDisplay globally accessible
@@ -688,4 +698,285 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Initialize the room
   room.message(USER_ID, { type: 'start' });
+  
+  // Add AI help functionality
+  console.log('About to initialize AI help...');
+  // Initialize immediately if DOM is ready, otherwise wait
+  try {
+    initializeAIHelp();
+  } catch (e) {
+    console.warn('initializeAIHelp threw, will retry on DOMContentLoaded:', e);
+  }
+  // Fallback: click delegation and mutation observer do not depend on timing
+  setupAIHelpClickDelegation();
+  observeAnswerReveal();
+  console.log('AI help initialization complete!');
+  
+  // Hide AI help section initially
+  hideAIHelpSection();
 }); 
+
+// AI Help Functions
+function showAIHelpSection() {
+  console.log('showAIHelpSection called');
+  const aiHelpSection = document.getElementById('ai-help-section');
+  console.log('AI help section element:', aiHelpSection);
+  
+  if (aiHelpSection) {
+    aiHelpSection.classList.remove('d-none');
+    console.log('AI help section shown');
+    // Reset explanation state
+    hideAIExplanation();
+    // Bring the AI help section into view for visibility
+    try {
+      aiHelpSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    } catch (e) {
+      // no-op if scrollIntoView not available
+    }
+  } else {
+    console.error('AI help section element not found!');
+  }
+}
+
+function hideAIHelpSection() {
+  console.log('hideAIHelpSection called');
+  const aiHelpSection = document.getElementById('ai-help-section');
+  if (aiHelpSection) {
+    aiHelpSection.classList.add('d-none');
+    console.log('AI help section hidden');
+    // Also hide any explanation
+    hideAIExplanation();
+  }
+}
+
+function hideAIExplanation() {
+  const aiExplanation = document.getElementById('ai-explanation');
+  const explanationContent = document.getElementById('explanation-content');
+  const explanationLoading = document.getElementById('explanation-loading');
+  
+  if (aiExplanation) aiExplanation.classList.add('d-none');
+  if (explanationContent) explanationContent.innerHTML = '';
+  if (explanationLoading) explanationLoading.classList.add('d-none');
+}
+
+function showAIExplanation() {
+  const aiExplanation = document.getElementById('ai-explanation');
+  if (aiExplanation) {
+    aiExplanation.classList.remove('d-none');
+  }
+}
+
+function showLoadingState() {
+  const explanationContent = document.getElementById('explanation-content');
+  const explanationLoading = document.getElementById('explanation-loading');
+  
+  if (explanationContent) explanationContent.innerHTML = '';
+  if (explanationLoading) explanationLoading.classList.remove('d-none');
+}
+
+function hideLoadingState() {
+  const explanationLoading = document.getElementById('explanation-loading');
+  if (explanationLoading) explanationLoading.classList.add('d-none');
+}
+
+function displayExplanation(explanation) {
+  const explanationContent = document.getElementById('explanation-content');
+  if (explanationContent) {
+    explanationContent.innerHTML = explanation.replace(/\n/g, '<br>');
+  }
+}
+
+async function getAIExplanation() {
+  try {
+    // Get current question and answer
+    const questionElement = document.getElementById('question');
+    const answerDisplay = document.getElementById('answer-display');
+    
+    if (!questionElement || !answerDisplay) {
+      console.error('Question or answer elements not found');
+      return;
+    }
+    
+    const question = questionElement.textContent.trim();
+    // Strip the leading "ANSWER:" label if present before sending to API
+    const rawAnswerText = answerDisplay.textContent.trim();
+    const answer = rawAnswerText.replace(/^ANSWER:\s*/i, '');
+    
+    if (!question || !answer) {
+      alert('Please wait for the question to be fully loaded and answered before requesting AI help.');
+      return;
+    }
+    
+    // Show loading state
+    showLoadingState();
+    showAIExplanation();
+    
+    // Make API call to get AI explanation
+    const response = await fetch('/api/ai-help/explain', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        question: question,
+        answer: answer,
+        category: getCurrentCategory()
+      })
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to get AI explanation');
+    }
+    
+    const data = await response.json();
+    
+    // Hide loading and display explanation
+    hideLoadingState();
+    displayExplanation(data.explanation);
+    
+  } catch (error) {
+    console.error('Error getting AI explanation:', error);
+    hideLoadingState();
+    
+    // Show error message
+    const explanationContent = document.getElementById('explanation-content');
+    if (explanationContent) {
+      explanationContent.innerHTML = `
+        <div class="alert alert-danger">
+          <strong>Error:</strong> ${error.message}
+          <br><small>Please try again later or contact support if the problem persists.</small>
+        </div>
+      `;
+    }
+  }
+}
+
+// Robust click binding: delegate to document so handler exists even if button is added later
+function setupAIHelpClickDelegation() {
+  if (window.__aiHelpClickDelegationAttached) return;
+  document.addEventListener('click', (e) => {
+    const btn = e.target?.closest && e.target.closest('#get-ai-help');
+    if (btn) {
+      e.preventDefault();
+      try {
+        console.log('Delegated click: Get AI Explanation');
+        getAIExplanation();
+      } catch (err) {
+        console.error('Delegated click failed:', err);
+      }
+    }
+  });
+  window.__aiHelpClickDelegationAttached = true;
+}
+
+// Fallback: observe when the answer is revealed in the DOM, then show + auto-fetch
+function observeAnswerReveal() {
+  try {
+    const answerEl = document.getElementById('answer-display');
+    if (!answerEl) return;
+    if (window.__aiHelpObserverAttached) return;
+    const obs = new MutationObserver(() => {
+      const text = answerEl.textContent?.trim() || '';
+      if (text.length > 0) {
+        console.log('MutationObserver detected answer reveal. Showing AI help...');
+        showAIHelpSection();
+        // Do not auto-fetch; wait for user to click the button
+      }
+    });
+    obs.observe(answerEl, { childList: true, subtree: true, characterData: true });
+    window.__aiHelpObserverAttached = true;
+  } catch (e) {
+    console.warn('observeAnswerReveal setup failed:', e);
+  }
+}
+
+function getCurrentCategory() {
+  // Try to get category from room state or UI
+  if (room && room.categoryManager && room.categoryManager.categories.length > 0) {
+    return room.categoryManager.categories[0]; // Return first selected category
+  }
+  
+  // Fallback to checking which category checkboxes are checked
+  const checkedCategories = document.querySelectorAll('.category-checkbox:checked');
+  if (checkedCategories.length > 0) {
+    return checkedCategories[0].id;
+  }
+  
+  return 'Science'; // Default fallback
+}
+
+function initializeAIHelp() {
+  console.log('initializeAIHelp called');
+  
+  // Add event listener for AI help button
+  const aiHelpButton = document.getElementById('get-ai-help');
+  console.log('AI help button element:', aiHelpButton);
+  
+  if (aiHelpButton) {
+    aiHelpButton.addEventListener('click', getAIExplanation);
+    console.log('AI help button initialized successfully');
+  } else {
+    console.error('AI help button not found - this will prevent the feature from working!');
+  }
+  
+  // Add event listener for test button
+  const testButton = document.getElementById('test-ai-help');
+  console.log('Test button element:', testButton);
+  
+  if (testButton) {
+    testButton.addEventListener('click', testAIHelp);
+    console.log('Test button initialized successfully');
+  } else {
+    console.error('Test button not found!');
+  }
+  
+  // Also check if the AI help section exists
+  const aiHelpSection = document.getElementById('ai-help-section');
+  console.log('AI help section element:', aiHelpSection);
+  
+  if (!aiHelpSection) {
+    console.error('AI help section not found - this is a critical error!');
+  }
+  
+  console.log('AI help initialization complete');
+}
+
+// Test function for debugging
+function testAIHelp() {
+  console.log('=== AI HELP DEBUG TEST ===');
+  console.log('1. Testing element existence:');
+  console.log('   - AI help section:', document.getElementById('ai-help-section'));
+  console.log('   - AI help button:', document.getElementById('get-ai-help'));
+  console.log('   - AI explanation div:', document.getElementById('ai-explanation'));
+  
+  console.log('2. Testing showAIHelpSection function:');
+  showAIHelpSection();
+  
+  console.log('3. Current visibility states:');
+  const aiHelpSection = document.getElementById('ai-help-section');
+  const aiExplanation = document.getElementById('ai-explanation');
+  
+  if (aiHelpSection) {
+    console.log('   - AI help section classes:', aiHelpSection.className);
+    console.log('   - AI help section hidden:', aiHelpSection.classList.contains('d-none'));
+  }
+  
+  if (aiExplanation) {
+    console.log('   - AI explanation classes:', aiExplanation.className);
+    console.log('   - AI explanation hidden:', aiExplanation.classList.contains('d-none'));
+  }
+  
+  console.log('=== END DEBUG TEST ===');
+}
+
+// Expose a small debug API so you can call from DevTools
+// Example: AIHelpDebug.test()
+window.AIHelpDebug = {
+  show: showAIHelpSection,
+  hide: hideAIHelpSection,
+  explain: getAIExplanation,
+  init: initializeAIHelp,
+  test: testAIHelp
+};
+console.log('AIHelpDebug available. Try AIHelpDebug.test() in console.');
