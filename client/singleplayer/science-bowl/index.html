@@ -840,7 +840,7 @@
         function sbInitAIHelp() {
           if (window.__sbAiInited) return;
           window.__sbAiInited = true;
-          // Delegated click for Get AI Explanation
+          // Delegated click for AI controls and Start/Next clearing
           document.addEventListener('click', (e) => {
             const btn = e.target && e.target.closest && e.target.closest('#get-ai-help');
             if (btn) { e.preventDefault(); sbGetAIExplanation(); }
@@ -848,6 +848,16 @@
             if (btn2) { e.preventDefault(); sbGetSuggestedReading(); }
             const btn3 = e.target && e.target.closest && e.target.closest('#get-extra-practice');
             if (btn3) { e.preventDefault(); sbGetExtraPractice(); }
+            const start = e.target && e.target.closest && e.target.closest('#start');
+            if (start) { sbHideAIHelpSection(); }
+          });
+
+          // Also clear on keyboard shortcuts for start/next
+          document.addEventListener('keydown', (e) => {
+            if (e.target && e.target.tagName === 'INPUT') return;
+            if (e.key === 'n' || e.key === 's') {
+              sbHideAIHelpSection();
+            }
           });
           // Observe answer reveal
           const aEl = document.getElementById('answer-display');

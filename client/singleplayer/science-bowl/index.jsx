@@ -690,11 +690,23 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.target.tagName === 'INPUT') { return; }
     switch (e.key) {
       case ' ': return room.message(USER_ID, { type: 'buzz' });
-      case 'n': return room.message(USER_ID, { type: 'start' });
+      case 'n':
+        hideAIHelpSection();
+        return room.message(USER_ID, { type: 'start' });
       case 'p': return room.message(USER_ID, { type: 'pause' });
-      case 's': return room.message(USER_ID, { type: 'start' });
+      case 's':
+        hideAIHelpSection();
+        return room.message(USER_ID, { type: 'start' });
     }
   });
+
+  // Also clear AI panels immediately when clicking the Start/Next button
+  const startBtn = document.getElementById('start');
+  if (startBtn) {
+    startBtn.addEventListener('click', () => {
+      try { hideAIHelpSection(); } catch (_) {}
+    });
+  }
 
   // Initialize the room
   room.message(USER_ID, { type: 'start' });
