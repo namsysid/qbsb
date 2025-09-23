@@ -236,6 +236,7 @@ Adjudication rules:
 - For numeric answers, allow rounding and equivalent forms; units must be compatible if required by the canonical answer.
 - If canonical answer is a specific term and the student answer is more general/vague, do NOT accept unless it clearly and unambiguously means the same thing.
 - If the student gives a different concept or an incorrect qualifier, mark not equivalent.
+- If the student gives an equivalent ranking for ranking questions, except with the actual text instead of the numbers, mark it as correct.
 
 Return strict JSON only with this exact shape and booleans, no extra commentary. Keep justification very short (<= 25 words):
 {

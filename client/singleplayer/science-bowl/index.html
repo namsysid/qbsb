@@ -1158,12 +1158,39 @@
             window.room.message('user', { type: 'start' });
         });
 
-        // Add keyboard shortcut for pause
+        // Add keyboard shortcuts: space = Buzz, n = Start/Next, p = Pause/Resume
         document.addEventListener('keydown', (e) => {
-            if (e.target.tagName === 'INPUT') return;
-            if (e.key === 'p') {
-                console.log('Pause key pressed');
+            const tag = (e.target.tagName || '').toUpperCase();
+            const isTyping = tag === 'INPUT' || tag === 'TEXTAREA' || e.target.isContentEditable;
+            if (isTyping) return;
+
+            // Space => Buzz
+            if (e.key === ' ' || e.code === 'Space') {
+                e.preventDefault();
+                const buzzBtn = document.getElementById('buzz');
+                if (buzzBtn && !buzzBtn.disabled) {
+                    console.log('Space pressed: triggering Buzz');
+                    buzzBtn.click();
+                }
+                return;
+            }
+
+            // n/N => Start/Next
+            if (e.key && e.key.toLowerCase() === 'n') {
+                const startBtn = document.getElementById('start');
+                if (startBtn && !startBtn.disabled) {
+                    console.log('N pressed: triggering Start/Next');
+                    startBtn.click();
+                }
+                return;
+            }
+
+            // p/P => Pause/Resume
+            if (e.key && e.key.toLowerCase() === 'p') {
+                e.preventDefault();
+                console.log('P pressed: toggling Pause/Resume');
                 handlePause();
+                return;
             }
         });
 
@@ -1192,8 +1219,9 @@
                 return;
             }
             
-            // Get the current strictness setting
-            const strictness = parseInt(document.getElementById('set-strictness').value) || 7;
+            // Get the current strictness setting (default to 7 if control is absent)
+            const strictnessEl = document.getElementById('set-strictness');
+            const strictness = strictnessEl ? (parseInt(strictnessEl.value) || 7) : 7;
             
             // Validate the answer
             const validationResult = validateAnswer(answer, correctAnswer, strictness);

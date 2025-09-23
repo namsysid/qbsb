@@ -24,6 +24,15 @@ account.getUsername().then(username => {
 
 // UI customizations for SBReader branding and simplified navbar
 try {
+  // Update document title branding
+  if (document && typeof document.title === 'string') {
+    if (/QB\s*Reader/i.test(document.title)) {
+      document.title = document.title.replace(/QB\s*Reader/gi, 'SBReader');
+    } else if (!document.title || document.title.trim() === '') {
+      document.title = 'SBReader';
+    }
+  }
+
   // Update brand from QBReader -> SBReader
   const prefix = document.querySelector('#logo .logo-prefix');
   const suffix = document.querySelector('#logo .logo-suffix');
