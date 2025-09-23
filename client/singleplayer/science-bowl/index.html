@@ -231,24 +231,30 @@
                     <div id="question" class="mb-3"></div>
                     <div id="answer-display" class="mb-3"></div>
                     <div id="user-answer" class="mb-3"></div>
-                    <div id="ai-help-section" class="mb-3 d-none">
-                        <div class="d-flex justify-content-between align-items-center mb-2 gap-2 flex-wrap">
-                            <h6 class="mb-0">Need help understanding this question?</h6>
-                            <div class="ms-auto d-flex gap-2">
-                                <button type="button" class="btn btn-outline-info btn-sm" id="get-ai-help">
-                                    <i class="bi bi-lightbulb"></i> Get AI Explanation
-                                </button>
-                                <button type="button" class="btn btn-outline-secondary btn-sm" id="get-suggested-reading">
-                                    <i class="bi bi-book"></i> Suggested Reading
-                                </button>
-                                <button type="button" class="btn btn-outline-success btn-sm" id="get-extra-practice">
-                                    <i class="bi bi-list-check"></i> Extra Practice
-                                </button>
+                        <div id="ai-help-section" class="mb-3 d-none">
+                            <div class="d-flex justify-content-between align-items-center mb-2 gap-2 flex-wrap">
+                                <h6 class="mb-0">Need help understanding this question?</h6>
+                                <div class="ms-auto d-flex gap-2">
+                                    <button type="button" class="btn btn-outline-info btn-sm" id="get-ai-help">
+                                        <i class="bi bi-lightbulb"></i> Get AI Explanation
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" id="get-suggested-reading">
+                                        <i class="bi bi-book"></i> Suggested Reading
+                                    </button>
+                                    <button type="button" class="btn btn-outline-success btn-sm" id="get-extra-practice">
+                                        <i class="bi bi-list-check"></i> Extra Practice
+                                    </button>
+                                    <button type="button" class="btn btn-outline-primary btn-sm d-none" id="plead-equivalence">
+                                        <i class="bi bi-hand-thumbs-up"></i> I was correct
+                                    </button>
+                                </div>
                             </div>
-                        </div>
-                        <div id="ai-explanation" class="d-none">
-                            <div class="card">
-                                <div class="card-header bg-info text-white">
+                            <div id="plead-inline" class="d-none">
+                              <div id="plead-inline-alert" class="alert alert-secondary py-1 px-2 mb-2" style="font-size: 0.9rem;"></div>
+                            </div>
+                            <div id="ai-explanation" class="d-none">
+                                <div class="card">
+                                    <div class="card-header bg-info text-white">
                                     <h6 class="mb-0">AI Explanation</h6>
                                 </div>
                                 <div class="card-body">
@@ -286,6 +292,20 @@
                                             <span class="visually-hidden">Loading...</span>
                                         </div>
                                         <span class="ms-2">Generating practice questions...</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card mt-3 d-none" id="plead-result">
+                                <div class="card-header bg-primary text-white">
+                                    <h6 class="mb-0">AI Equivalence Review</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div id="plead-result-content"></div>
+                                    <div id="plead-result-loading" class="text-center d-none">
+                                        <div class="spinner-border spinner-border-sm" role="status">
+                                            <span class="visually-hidden">Loading...</span>
+                                        </div>
+                                        <span class="ms-2">Asking AI to review your answer...</span>
                                     </div>
                                 </div>
                             </div>
@@ -587,6 +607,17 @@
           // Also clear extra sections
           sbHideSuggested();
           sbHidePractice();
+          // Also clear plead UI
+          (function(){
+            const card = document.getElementById('plead-result');
+            const content2 = document.getElementById('plead-result-content');
+            const loading2 = document.getElementById('plead-result-loading');
+            if (content2) content2.innerHTML = '';
+            if (loading2) loading2.classList.add('d-none');
+            if (card) card.classList.add('d-none');
+            const btn = document.getElementById('plead-equivalence');
+            if (btn) btn.classList.add('d-none');
+          })();
         }
 
         function sbShowAIExplanation() {
@@ -667,6 +698,174 @@
         function sbHidePracticeLoading() {
           const loading = document.getElementById('extra-practice-loading');
           if (loading) loading.classList.add('d-none');
+        }
+
+        // Plead (equivalence) UI helpers
+        function sbShowPlead() {
+          const card = document.getElementById('plead-result');
+          const content = document.getElementById('plead-result-content');
+          if (content) content.innerHTML = '';
+          if (card) {
+            card.classList.remove('d-none');
+            console.log('[SBAI] showing verdict card: removed d-none');
+          } else {
+            console.warn('[SBAI] verdict card not found (#plead-result)');
+          }
+          try { card.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (_) {}
+        }
+
+        function sbHidePlead() {
+          const card = document.getElementById('plead-result');
+          const content = document.getElementById('plead-result-content');
+          const loading = document.getElementById('plead-result-loading');
+          if (content) content.innerHTML = '';
+          if (loading) loading.classList.add('d-none');
+          if (card) card.classList.add('d-none');
+          const btn = document.getElementById('plead-equivalence');
+          if (btn) btn.classList.add('d-none');
+        }
+
+        function sbShowPleadLoading() {
+          const loading = document.getElementById('plead-result-loading');
+          const content = document.getElementById('plead-result-content');
+          if (content) content.innerHTML = '';
+          if (loading) {
+            loading.classList.remove('d-none');
+            console.log('[SBAI] verdict loading spinner shown');
+          }
+        }
+
+        function sbHidePleadLoading() {
+          const loading = document.getElementById('plead-result-loading');
+          if (loading) {
+            loading.classList.add('d-none');
+            console.log('[SBAI] verdict loading spinner hidden');
+          }
+        }
+
+        function sbRenderPleadResult(equivalent, verdictText) {
+          const content = document.getElementById('plead-result-content');
+          if (!content) return;
+          const shortText = (verdictText || '').trim();
+          if (equivalent) {
+            content.innerHTML = '<div class="alert alert-success mb-0"><strong>Accepted:</strong> ' + (shortText || 'Equivalent answer.') + '</div>';
+            console.log('[SBAI] rendered verdict: Accepted', { text: shortText });
+          } else {
+            content.innerHTML = '<div class="alert alert-warning mb-0"><strong>Not accepted:</strong> ' + (shortText || 'Not equivalent.') + '</div>';
+            console.log('[SBAI] rendered verdict: Not accepted', { text: shortText });
+          }
+          const card = document.getElementById('plead-result');
+          if (card && card.classList.contains('d-none')) {
+            card.classList.remove('d-none');
+            console.log('[SBAI] ensured verdict card visible after render');
+          }
+          console.log('[SBAI] verdict content length', content.textContent.length);
+
+          // Inline verdict inside the AI Help header area
+          const inline = document.getElementById('plead-inline');
+          const inlineAlert = document.getElementById('plead-inline-alert');
+          if (inline && inlineAlert) {
+            inline.classList.remove('d-none');
+            inlineAlert.classList.remove('alert-success', 'alert-warning', 'alert-secondary');
+            inlineAlert.classList.add(equivalent ? 'alert-success' : 'alert-warning');
+            inlineAlert.innerHTML = (equivalent ? '<strong>Accepted:</strong> ' : '<strong>Not accepted:</strong> ') + (shortText || (equivalent ? 'Equivalent answer.' : 'Not equivalent.'));
+            console.log('[SBAI] inline verdict shown');
+          } else {
+            console.warn('[SBAI] inline verdict elements not found');
+          }
+        }
+
+        function sbIsMcqCurrent() {
+          try { return !!(window.room && room.tossup && room.tossup.is_mcq); } catch (_) { return false; }
+        }
+
+        function sbWasUserIncorrect() {
+          try { return !!(window.room && room.previous && room.previous.isCorrect === false); } catch (_) { return false; }
+        }
+
+        function sbHasUserAnswer() {
+          const ua = (document.getElementById('user-answer')?.textContent || '').replace(/^YOUR ANSWER:\s*/i, '').trim();
+          return ua.length > 0;
+        }
+
+        function sbUpdatePleadButtonVisibility() {
+          const btn = document.getElementById('plead-equivalence');
+          if (!btn) return;
+          // Show only for FRQ (not MCQ), user was marked incorrect, and they have an answer
+          if (!sbIsMcqCurrent() && sbWasUserIncorrect() && sbHasUserAnswer()) {
+            btn.classList.remove('d-none');
+            btn.disabled = false;
+            btn.textContent = 'I was correct';
+          } else {
+            btn.classList.add('d-none');
+          }
+        }
+
+        async function sbRunPleadEquivalence() {
+          const btn = document.getElementById('plead-equivalence');
+          try {
+            const qEl = document.getElementById('question');
+            const aEl = document.getElementById('answer-display');
+            const uEl = document.getElementById('user-answer');
+            if (!aEl || !uEl) { console.error('[SBAI] Missing answer elements', { hasAnswerEl: !!aEl, hasUserEl: !!uEl }); return; }
+            const question = (qEl?.textContent || '').trim();
+            const rawCorrect = (aEl.textContent || '').trim();
+            const correctAnswer = rawCorrect.replace(/^ANSWER:\\s*/i, '');
+            const userAnswer = (uEl.textContent || '').replace(/^YOUR ANSWER:\\s*/i, '').trim();
+            if (!userAnswer || !correctAnswer) {
+              console.warn('[SBAI] Missing values before plead', { userAnswer, correctAnswer });
+              sbShowPlead();
+              const content = document.getElementById('plead-result-content');
+              if (content) content.innerHTML = '<div class="alert alert-warning mb-0">Missing answer(s). Try revealing the answer first.</div>';
+              return;
+            }
+            console.log('[SBAI] plead start', { qLen: question.length, correctAnswer, userAnswer, category: sbGetCurrentCategory() });
+            sbShowPlead();
+            sbShowPleadLoading();
+            if (btn) btn.disabled = true;
+            const resp = await fetch('/api/ai-help/equivalence', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ question, correctAnswer, userAnswer, category: sbGetCurrentCategory() })
+            });
+            console.log('[SBAI] plead response', { ok: resp.ok, status: resp.status, ct: resp.headers.get('content-type') });
+            const ct = resp.headers.get('content-type') || '';
+            if (!resp.ok) {
+              const err = ct.includes('application/json') ? (await resp.json()) : { error: await resp.text() };
+              throw new Error(err.error || 'Equivalence check failed');
+            }
+            if (!ct.includes('application/json')) {
+              const text = await resp.text();
+              throw new Error('Unexpected non-JSON response: ' + text.slice(0, 60));
+            }
+            const data = await resp.json();
+            console.log('[SBAI] plead parsed', data);
+            sbHidePleadLoading();
+            console.log('[SBAI] rendering verdict to DOM');
+            sbRenderPleadResult(!!data.equivalent, data.justification || data.rationale || '');
+
+            if (data.equivalent) {
+              // Credit the user once if they were previously incorrect
+              try {
+                if (window.room && room.previous && room.previous.isCorrect === false) {
+                  room.previous.isCorrect = true;
+                  if (typeof window.updateStatDisplay === 'function') {
+                    window.updateStatDisplay();
+                  }
+                }
+              } catch (_) {}
+              if (btn) btn.textContent = 'Accepted';
+            } else {
+              if (btn) btn.textContent = 'Not accepted';
+            }
+          } catch (e) {
+            console.error('[SBAI] Plead error:', e);
+            sbHidePleadLoading();
+            const content = document.getElementById('plead-result-content');
+            if (content) content.innerHTML = '<div class="alert alert-danger"><strong>Error:</strong> ' + (e?.message || e) + '</div>';
+          } finally {
+            if (btn) btn.disabled = false;
+          }
         }
 
         function sbRenderPractice(problems) {
@@ -856,6 +1055,8 @@
             if (btn2) { e.preventDefault(); sbGetSuggestedReading(); }
             const btn3 = e.target && e.target.closest && e.target.closest('#get-extra-practice');
             if (btn3) { e.preventDefault(); sbGetExtraPractice(); }
+            const plead = e.target && e.target.closest && e.target.closest('#plead-equivalence');
+            if (plead) { console.log('[SBAI] plead button clicked'); e.preventDefault(); sbRunPleadEquivalence(); }
             const start = e.target && e.target.closest && e.target.closest('#start');
             if (start) { sbHideAIHelpSection(); }
           });
@@ -873,8 +1074,10 @@
             const obs = new MutationObserver(() => {
               const t = (aEl.textContent || '').trim();
               if (t) {
+                console.log('[SBAI] answer-display mutated, text present. Showing AI section and updating plead visibility.');
                 sbShowAIHelpSection();
                 // Do not auto-fetch here; wait for user click
+                sbUpdatePleadButtonVisibility();
               }
             });
             obs.observe(aEl, { childList: true, subtree: true, characterData: true });
@@ -889,6 +1092,7 @@
           show: sbShowAIHelpSection,
           hide: sbHideAIHelpSection,
           explain: sbGetAIExplanation,
+          plead: sbRunPleadEquivalence,
           init: sbInitAIHelp
         };
 

@@ -200,6 +200,124 @@ Critique JSON:\n${JSON.stringify({ needs_changes: needsChanges, issues, summary 
   }
 });
 
+// Evaluate semantic equivalence between user answer and canonical answer
+router.post('/equivalence', async (req, res) => {
+  try {
+    const { question, correctAnswer, userAnswer, userJustification, category } = req.body || {};
+    console.log('[AI-HELP] /equivalence payload', {
+      qLen: (question || '').length,
+      correctAnswer: String(correctAnswer).slice(0, 80),
+      userAnswer: String(userAnswer).slice(0, 80),
+      hasJustification: !!userJustification,
+      category
+    });
+
+    if (!correctAnswer || !userAnswer) {
+      return res.status(400).json({ error: 'correctAnswer and userAnswer are required' });
+    }
+
+    const openaiApiKey = process.env.OPENAI_API_KEY;
+    if (!openaiApiKey) {
+      return res.status(500).json({ error: 'OpenAI API key not configured' });
+    }
+
+    const prompt = `You are grading a free-response Science Bowl style answer for semantic equivalence.
+
+Question (optional context): ${question || 'N/A'}
+Category: ${category || 'Science'}
+Canonical Answer: ${correctAnswer}
+Student Answer: ${userAnswer}
+${userJustification ? `Student Justification (optional): ${userJustification}` : ''}
+
+Decide if the student answer is essentially equivalent to the canonical answer.
+Adjudication rules:
+- Accept common synonyms, alternate phrasings, word order, plural/singular, diacritics, and minor spelling errors.
+- Accept equivalent chemistry names (IUPAC/common), biology taxonomic variants, physics/astro naming variants, and well-known aliases.
+- For numeric answers, allow rounding and equivalent forms; units must be compatible if required by the canonical answer.
+- If canonical answer is a specific term and the student answer is more general/vague, do NOT accept unless it clearly and unambiguously means the same thing.
+- If the student gives a different concept or an incorrect qualifier, mark not equivalent.
+
+Return strict JSON only with this exact shape and booleans, no extra commentary. Keep justification very short (<= 25 words):
+{
+  "equivalent": true,
+  "decision": "equivalent|not_equivalent",
+  "justification": "One short sentence verdict explaining why (consider the student justification if provided)"
+}`;
+
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openaiApiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'gpt-3.5-turbo',
+        messages: [
+          { role: 'system', content: 'You are an objective grader for semantic equivalence. Return strict JSON only.' },
+          { role: 'user', content: prompt }
+        ],
+        max_tokens: 300,
+        temperature: 0.0
+      })
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      console.error('OpenAI API error (equivalence):', err);
+      return res.status(500).json({ error: 'Failed to evaluate equivalence', details: err.error?.message || 'Unknown error' });
+    }
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content || '';
+    let parsed;
+    try {
+      parsed = JSON.parse(content);
+    } catch {
+      // Fallback: attempt a second pass asking for strict JSON
+      const fallbackPrompt = `Reformat the previous decision as strict JSON with keys: equivalent (boolean), decision ("equivalent"|"not_equivalent"), rationale (string). No commentary.`;
+      const fixResp = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${openaiApiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: 'gpt-3.5-turbo',
+          messages: [
+            { role: 'system', content: 'Return strict JSON only.' },
+            { role: 'user', content: content },
+            { role: 'user', content: fallbackPrompt }
+          ],
+          max_tokens: 150,
+          temperature: 0.0
+        })
+      });
+      if (fixResp.ok) {
+        const fixData = await fixResp.json();
+        const fixContent = fixData.choices?.[0]?.message?.content || '';
+        try { parsed = JSON.parse(fixContent); } catch {}
+      }
+    }
+
+    if (!parsed || typeof parsed.equivalent !== 'boolean' || !parsed.decision) {
+      return res.status(500).json({ error: 'Invalid response format from AI' });
+    }
+
+    const result = {
+      equivalent: !!parsed.equivalent,
+      decision: parsed.decision,
+      justification: typeof parsed.justification === 'string' ? parsed.justification : (typeof parsed.rationale === 'string' ? parsed.rationale : ''),
+      model: data.model,
+      usage: data.usage
+    };
+    console.log('[AI-HELP] /equivalence result', { decision: result.decision, equivalent: result.equivalent, justification: String(result.justification).slice(0, 120) });
+    res.json(result);
+  } catch (error) {
+    console.error('AI equivalence error:', error);
+    res.status(500).json({ error: 'Internal server error', details: error.message });
+  }
+});
+
 // Suggested reading endpoint
 router.post('/suggest-reading', async (req, res) => {
   try {
