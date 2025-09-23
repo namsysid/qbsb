@@ -617,6 +617,10 @@
             if (card) card.classList.add('d-none');
             const btn = document.getElementById('plead-equivalence');
             if (btn) btn.classList.add('d-none');
+            const inline = document.getElementById('plead-inline');
+            const inlineAlert = document.getElementById('plead-inline-alert');
+            if (inline) inline.classList.add('d-none');
+            if (inlineAlert) inlineAlert.textContent = '';
           })();
         }
 
@@ -854,7 +858,11 @@
                   }
                 }
               } catch (_) {}
-              if (btn) btn.textContent = 'Accepted';
+              if (btn) {
+                btn.textContent = 'Accepted';
+                // Hide the button once credit has been granted to avoid duplicates
+                btn.classList.add('d-none');
+              }
             } else {
               if (btn) btn.textContent = 'Not accepted';
             }
