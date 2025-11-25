@@ -428,6 +428,74 @@ Prefer stable, non-paywalled links when possible.`;
   }
 });
 
+// Topic summary endpoint: returns a concise 3-5 word subject focus
+router.post('/topic-summary', async (req, res) => {
+  try {
+    const { question, answer, category } = req.body || {};
+    if (!question || !answer) {
+      return res.status(400).json({ error: 'Question and answer are required' });
+    }
+
+    const openaiApiKey = process.env.OPENAI_API_KEY;
+    if (!openaiApiKey) {
+      return res.status(500).json({ error: 'OpenAI API key not configured' });
+    }
+
+    const prompt = `Summarize the core topic of this Science Bowl tossup using exactly one phrase of 3 to 5 words.
+Use only concise keywords separated by spaces (letters/numbers only, no punctuation).
+Examples: "Photosynthesis light reactions", "Quantum angular momentum", "Basaltic lava viscosity".
+
+Question: ${question}
+Correct Answer: ${answer}
+Category: ${category || 'Science'}
+
+Return only the 3-5 word phrase.`;
+
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openaiApiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'gpt-3.5-turbo',
+        messages: [
+          { role: 'system', content: 'You create extremely concise topic tags for Science Bowl questions. Respond with only the tag.' },
+          { role: 'user', content: prompt }
+        ],
+        max_tokens: 50,
+        temperature: 0.2
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.error('OpenAI API error (topic-summary):', errorData);
+      return res.status(500).json({ error: 'Failed to get topic summary', details: errorData.error?.message || 'Unknown error' });
+    }
+
+    const data = await response.json();
+    const raw = data.choices?.[0]?.message?.content?.trim() || '';
+    const sanitized = raw
+      .replace(/[^a-z0-9\s-]/gi, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    let words = sanitized.split(' ').filter(Boolean);
+    if (words.length < 3) {
+      const fallbackWords = `${category || 'Science'} ${answer}`
+        .replace(/[^a-z0-9\s-]/gi, ' ')
+        .split(' ')
+        .filter(Boolean);
+      words = words.concat(fallbackWords);
+    }
+    const summary = words.slice(0, 5).join(' ').trim() || `${category || 'Science'} concept`;
+    res.json({ summary, model: data.model, usage: data.usage });
+  } catch (error) {
+    console.error('AI topic-summary error:', error);
+    res.status(500).json({ error: 'Internal server error', details: error.message });
+  }
+});
+
 // Extra practice endpoint: returns practice questions with answers and explanations
 router.post('/extra-practice', async (req, res) => {
   try {
