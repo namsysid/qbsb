@@ -118,4 +118,25 @@ export default class api {
       .then(response => response.json())
       .then(data => data.tossup);
   }
+
+  static async getScienceBowlSubjectStats () {
+    const parseResponse = async (response) => {
+      const data = await response.json();
+      return data.stats;
+    };
+
+    let response = await fetch('/auth/user-stats/science-bowl-subjects');
+    if (response.ok) {
+      return await parseResponse(response);
+    }
+
+    if (response.status === 401) {
+      response = await fetch('/api/science-bowl/session-stats');
+      if (response.ok) {
+        return await parseResponse(response);
+      }
+    }
+
+    throw new Error('Failed to fetch stats');
+  }
 }

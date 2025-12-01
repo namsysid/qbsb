@@ -417,8 +417,16 @@ export default class ScienceBowlRoom extends QuestionRoom {
         // Use the validateAnswer function to check the answer
         const validationResult = validateAnswer(givenAnswer, combinedAnswer, this.settings.strictness);
         isCorrect = validationResult.isCorrect;
-        console.log('Final isCorrect result:', isCorrect);
+        console.log('Final isCorrect result (MCQ):', isCorrect);
       }
+    } else if (this.tossup?.answer) {
+      console.log('Processing free-response answer:', {
+        givenAnswer,
+        correctAnswer: this.tossup.answer
+      });
+      const validationResult = validateAnswer(givenAnswer, this.tossup.answer, this.settings.strictness);
+      isCorrect = validationResult.isCorrect;
+      console.log('Final isCorrect result (free-response):', isCorrect, validationResult);
     }
 
     // Store the result in previous

@@ -1,5 +1,6 @@
 import bonusGraphRouter from './bonus-graph.js';
 import bonusRouter from './bonus.js';
+import scienceBowlSubjectsRouter from './science-bowl-subjects.js';
 import tossupGraphRouter from './tossup-graph.js';
 import tossupRouter from './tossup.js';
 
@@ -10,6 +11,10 @@ import { Router } from 'express';
 const router = Router();
 
 router.use((req, res, next) => {
+  if (req.path === '/science-bowl-subjects') {
+    return next();
+  }
+
   const { username, token } = req.session;
   if (!checkToken(username, token)) {
     delete req.session;
@@ -43,6 +48,7 @@ router.use((req, res, next) => {
 
 router.use('/bonus', bonusRouter);
 router.use('/bonus-graph', bonusGraphRouter);
+router.use('/science-bowl-subjects', scienceBowlSubjectsRouter);
 router.use('/tossup', tossupRouter);
 router.use('/tossup-graph', tossupGraphRouter);
 

@@ -76,6 +76,97 @@
         .dark #explanation-content {
             color: #e2e8f0;
         }
+        
+        /* Subject Statistics Table - Bottom Right Corner */
+        #subject-stats-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000;
+            max-width: 400px;
+            background-color: white;
+            border: 1px solid #dee2e6;
+            border-radius: 0.375rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 15px;
+        }
+        
+        .dark #subject-stats-container {
+            background-color: #2d3748;
+            border-color: #4a5568;
+        }
+        
+        #subject-stats-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        #subject-stats-table-container {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        #subject-stats-container table {
+            margin-bottom: 0;
+        }
+        #subject-stats-container.collapsed {
+            top: auto;
+            bottom: 20px;
+            max-width: 240px;
+            padding: 10px 12px;
+        }
+        #subject-stats-container.collapsed #subject-stats-body-wrap {
+            display: none;
+        }
+        #subject-stats-container.collapsed #subject-stats-header h6 {
+            margin-bottom: 0;
+        }
+        #topics-needed-section.collapsed .card-body {
+            display: none;
+        }
+        .collapse-toggle-icon {
+            transition: transform 0.2s ease;
+        }
+        #subject-stats-container.collapsed .collapse-toggle-icon,
+        #topics-needed-section.collapsed .collapse-toggle-icon {
+            transform: rotate(180deg);
+        }
+
+        /* Topics needing improvement UI */
+        #topics-needed-section .card {
+            border: 1px solid #dee2e6;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+
+        #topics-needed-section .card-header {
+            background-color: #f8f9fa;
+        }
+
+        #topics-needed-list .topic-item + .topic-item {
+            border-top: 1px solid rgba(0,0,0,0.05);
+            padding-top: 0.75rem;
+            margin-top: 0.75rem;
+        }
+
+        #topics-needed-list .topic-summary-text {
+            font-weight: 600;
+        }
+
+        .dark #topics-needed-section .card {
+            background-color: #1f2937;
+            border-color: #4a5568;
+        }
+
+        .dark #topics-needed-section .card-header {
+            background-color: #2d3748;
+        }
+
+        .dark #topics-needed-list .topic-item + .topic-item {
+            border-color: rgba(255,255,255,0.08);
+        }
+        
     </style>
 </head>
 
@@ -175,15 +266,6 @@
                         <label class="form-check-label" for="toggle-speech">Enable text-to-speech</label>
                     </div>
                     <div class="mb-2"></div>
-                    <!-- Removed: Reading speed, Strictness, View more settings link -->
-                    <div class="d-none d-lg-block">
-                        <hr>
-                        <p>
-                            <span class="text-nowrap"><kbd>k</kbd> = show/hide last question</span><br>
-                            <span class="text-nowrap"><kbd>t</kbd> = star/unstar last question</span><br>
-                            <span class="text-nowrap"><kbd>y</kbd> = copy current question id to clipboard</span><br>
-                        </p>
-                    </div>
                 </div>
             </div>
             <div class="col-12 col-lg-9" id="content">
@@ -199,10 +281,12 @@
                                 of <span id="packet-length-info">-</span>
                             </b>
                         </span>
-                        <!-- Debug button for testing AI help -->
-                        <button type="button" class="btn btn-warning btn-sm" id="test-ai-help">
-                            Test AI Help
-                        </button>
+                        <div class="d-flex gap-2">
+                            <!-- Debug button for testing AI help -->
+                            <button type="button" class="btn btn-warning btn-sm" id="test-ai-help">
+                                Test AI Help
+                            </button>
+                        </div>
                     </div>
                     <div id="question" class="mb-3"></div>
                     <div id="answer-display" class="mb-3"></div>
@@ -290,6 +374,31 @@
                     <div id="answer-input-group" class="input-group mb-3 d-none">
                         <input class="form-control" id="answer-input" type="text" placeholder="Enter answer" autocomplete="off">
                         <button class="btn btn-success" id="answer-submit" type="submit">Submit</button>
+                    </div>
+                    <div id="topics-needed-section" class="mb-3">
+                        <div class="card">
+                            <div class="card-header d-flex align-items-center gap-2 flex-wrap">
+                                <div>
+                                    <h6 class="mb-0">Topics Needing Improvement</h6>
+                                    <small class="text-muted" id="topics-needed-count">Log of AI summaries for missed tossups.</small>
+                                </div>
+                                <div class="ms-auto d-flex gap-2 align-items-center flex-wrap">
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" id="topics-collapse-toggle" aria-expanded="true" title="Collapse topics list">
+                                        <i class="bi bi-chevron-up collapse-toggle-icon"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" id="topics-needed-refresh">
+                                        <i class="bi bi-arrow-repeat"></i> Refresh summaries
+                                    </button>
+                                    <button type="button" class="btn btn-outline-danger btn-sm" id="topics-needed-clear">
+                                        <i class="bi bi-trash"></i> Clear
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <p class="text-muted mb-0" id="topics-needed-empty">No missed tossups logged yet. We will add short AI-generated topic summaries whenever you miss a question.</p>
+                                <ul class="list-unstyled mb-0 d-none" id="topics-needed-list"></ul>
+                            </div>
+                        </div>
                     </div>
                 </form>
                 <ul class="room-history list-unstyled" id="room-history"></ul>
@@ -825,9 +934,11 @@
             sbRenderPleadResult(!!data.equivalent, data.justification || data.rationale || '');
 
             if (data.equivalent) {
+              const tossupId = (window.room?.previous?.tossup?._id) || (window.room?.tossup?._id) || null;
+              const wasAlreadyCorrected = tossupId && window.sbCorrectedTossupIds?.has(tossupId);
               // Credit the user once if they were previously incorrect
               try {
-                if (window.room && room.previous && room.previous.isCorrect === false) {
+                if (!wasAlreadyCorrected && window.room && room.previous && room.previous.isCorrect === false) {
                   room.previous.isCorrect = true;
                   if (typeof window.updateStatDisplay === 'function') {
                     window.updateStatDisplay();
@@ -839,6 +950,16 @@
                 // Hide the button once credit has been granted to avoid duplicates
                 btn.classList.add('d-none');
               }
+
+              const statSubject = window.room?.previous?.tossup?.subject || window.room?.tossup?.subject || '';
+              if (typeof window.sbRecordSessionStat === 'function') {
+                window.sbRecordSessionStat({
+                  subject: statSubject,
+                  adjustment: window.sbSessionStatWrongToCorrect || 'wrong-to-correct',
+                  tossupId
+                });
+              }
+              window.refreshScienceBowlSubjectStats?.();
             } else {
               if (btn) btn.textContent = 'Not accepted';
             }
@@ -1085,6 +1206,334 @@
         } else {
           sbInitAIHelp();
         }
+      })();
+    </script>
+    <script>
+      (function initTopicImprovementTracker () {
+        const STORAGE_KEY = 'singleplayer-science-bowl-topics-needed';
+        const TOPICS_COLLAPSE_KEY = 'singleplayer-science-bowl-topics-collapsed';
+        const MAX_TOPICS = 20;
+        const state = {
+          topics: [],
+          inFlight: new Set(),
+          topicsCollapsed: false
+        };
+
+        const els = {
+          list: document.getElementById('topics-needed-list'),
+          empty: document.getElementById('topics-needed-empty'),
+          count: document.getElementById('topics-needed-count'),
+          clear: document.getElementById('topics-needed-clear'),
+          refresh: document.getElementById('topics-needed-refresh'),
+          collapseToggle: document.getElementById('topics-collapse-toggle'),
+          container: document.getElementById('topics-needed-section')
+        };
+        const storedCollapsed = window.localStorage.getItem(TOPICS_COLLAPSE_KEY);
+        state.topicsCollapsed = storedCollapsed === 'true';
+
+        function escapeHtml (str = '') {
+          return str.replace(/[&<>"']/g, (ch) => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;'
+          }[ch] || ch));
+        }
+
+        function stripHtml (str = '') {
+          return str.replace(/<[^>]*>/g, ' ');
+        }
+
+        function truncateText (text = '', maxLen = 140) {
+          if (text.length <= maxLen) return text;
+          return text.slice(0, maxLen - 1).trimEnd() + '...';
+        }
+
+        function buildFingerprint (question = '', answer = '') {
+          return `${question.trim().toLowerCase()}|${answer.trim().toLowerCase()}`.slice(0, 400);
+        }
+
+        function enforceWordLimit (text = '', minWords = 3, maxWords = 5) {
+          const words = text.split(/\s+/).filter(Boolean);
+          if (words.length === 0) return '';
+          const limited = words.slice(0, maxWords);
+          if (limited.length < minWords && words.length >= minWords) {
+            return words.slice(0, minWords).join(' ');
+          }
+          return limited.join(' ');
+        }
+
+        function countWords (text = '') {
+          if (!text || !text.trim()) return 0;
+          return text.trim().split(/\s+/).length;
+        }
+
+        function formatSummaryText (raw, category, answer) {
+          const fallbackSource = `${category || 'Science'} ${answer || 'core concept'} focus`.trim();
+          const fallback = enforceWordLimit(fallbackSource);
+          if (!raw || typeof raw !== 'string') return fallback;
+          const clean = raw.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+          if (!clean) return fallback;
+          const limited = enforceWordLimit(clean);
+          if (countWords(limited) < 3) {
+            return fallback;
+          }
+          return limited || fallback;
+        }
+
+        function applyTopicsCollapsedState () {
+          if (els.container) {
+            els.container.classList.toggle('collapsed', state.topicsCollapsed);
+          }
+          if (els.collapseToggle) {
+            els.collapseToggle.setAttribute('aria-expanded', (!state.topicsCollapsed).toString());
+            els.collapseToggle.title = state.topicsCollapsed ? 'Expand topics list' : 'Collapse topics list';
+          }
+        }
+
+        function setTopicsCollapsed (collapsed) {
+          state.topicsCollapsed = collapsed;
+          try {
+            window.localStorage.setItem(TOPICS_COLLAPSE_KEY, collapsed ? 'true' : 'false');
+          } catch (err) {
+            console.warn('[SB Topics] Failed to persist collapse state', err);
+          }
+          applyTopicsCollapsedState();
+        }
+
+        function loadFromStorage () {
+          try {
+            const stored = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || '[]');
+            if (Array.isArray(stored)) {
+              state.topics = stored.slice(0, MAX_TOPICS).map((entry) => ({
+                ...entry,
+                status: entry.status === 'ready' ? 'ready' : (entry.status === 'error' ? 'error' : 'pending'),
+                summary: entry.summary || 'Generating topic summary...'
+              }));
+            }
+          } catch (err) {
+            console.warn('[SB Topics] Failed to load stored topics', err);
+            state.topics = [];
+          }
+        }
+
+        function saveToStorage () {
+          try {
+            window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state.topics.slice(0, MAX_TOPICS)));
+          } catch (err) {
+            console.warn('[SB Topics] Failed to persist topics', err);
+          }
+        }
+
+        function renderList () {
+          if (!els.list || !els.empty || !els.count) return;
+          const hasTopics = state.topics.length > 0;
+          els.empty.classList.toggle('d-none', hasTopics);
+          els.list.classList.toggle('d-none', !hasTopics);
+          if (!hasTopics) {
+            els.count.textContent = 'Log of AI summaries for missed tossups.';
+            els.list.innerHTML = '';
+            return;
+          }
+          els.count.textContent = `${state.topics.length} topic${state.topics.length === 1 ? '' : 's'} logged`;
+          const items = state.topics.map((entry) => {
+            const summaryHtml = entry.status === 'pending'
+              ? '<span class="text-muted"><span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Summarizing...</span>'
+              : entry.status === 'error'
+                ? `<span class="text-danger">${escapeHtml(entry.summary)}</span>`
+                : `<span class="topic-summary-text">${escapeHtml(entry.summary)}</span>`;
+            const metaParts = [];
+            if (entry.category) metaParts.push(escapeHtml(entry.category));
+            if (entry.correctAnswer) metaParts.push(`Correct: ${escapeHtml(entry.correctAnswer)}`);
+            if (entry.userAnswer) metaParts.push(`Your answer: ${escapeHtml(entry.userAnswer)}`);
+            const metaHtml = metaParts.length ? `<div class="small text-muted mt-1">${metaParts.join(' • ')}</div>` : '';
+            const questionHtml = entry.questionSnippet
+              ? `<div class="small text-muted">Q: ${escapeHtml(entry.questionSnippet)}</div>`
+              : '';
+            const retryButton = entry.status === 'error'
+              ? `<button type="button" class="btn btn-sm btn-outline-secondary me-2" data-topic-retry="${entry.id}">
+                    <i class="bi bi-arrow-repeat"></i>
+                    Retry
+                 </button>`
+              : '';
+            return `<li class="topic-item" data-topic-id="${entry.id}">
+              <div class="d-flex align-items-start">
+                <div class="flex-grow-1">
+                  <div>${summaryHtml}</div>
+                  ${metaHtml}
+                  ${questionHtml}
+                </div>
+                <div class="ms-3 text-nowrap">
+                  ${retryButton}
+                  <button type="button" class="btn btn-sm btn-outline-danger" data-topic-remove="${entry.id}" aria-label="Remove topic summary">
+                    <i class="bi bi-x-lg"></i>
+                  </button>
+                </div>
+              </div>
+            </li>`;
+          }).join('');
+          els.list.innerHTML = items;
+        }
+
+        async function requestTopicSummary ({ question, answer, category }) {
+          const resp = await fetch('/api/ai-help/topic-summary', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              question,
+              answer,
+              category
+            })
+          });
+          const contentType = resp.headers.get('content-type') || '';
+          const body = contentType.includes('application/json') ? await resp.json() : await resp.text();
+          if (!resp.ok) {
+            const errMessage = typeof body === 'string'
+              ? body.slice(0, 120)
+              : (body?.error || 'Failed to generate topic summary');
+            throw new Error(errMessage);
+          }
+          const summary = typeof body === 'string' ? body : body.summary;
+          return formatSummaryText(summary, category, answer);
+        }
+
+        async function runSummaryForEntry (entry) {
+          if (!entry || state.inFlight.has(entry.id)) return;
+          state.inFlight.add(entry.id);
+          const questionForSummary = entry.questionFull || entry.questionSnippet || '';
+          if (!questionForSummary) {
+            entry.summary = 'Summary unavailable: missing question text';
+            entry.status = 'error';
+            state.inFlight.delete(entry.id);
+            renderList();
+            saveToStorage();
+            return;
+          }
+          entry.status = 'pending';
+          entry.summary = 'Generating topic summary...';
+          renderList();
+          saveToStorage();
+          try {
+            const summary = await requestTopicSummary({
+              question: questionForSummary,
+              answer: entry.correctAnswer,
+              category: entry.category
+            });
+            entry.summary = summary;
+            entry.status = 'ready';
+          } catch (error) {
+            entry.summary = `Summary unavailable: ${error?.message || 'Unknown error'}`;
+            entry.status = 'error';
+          } finally {
+            state.inFlight.delete(entry.id);
+            saveToStorage();
+            renderList();
+          }
+        }
+
+        function hasExistingEntry ({ tossupId, fingerprint }) {
+          return state.topics.some((entry) => {
+            if (tossupId && entry.tossupId && entry.tossupId === tossupId) return true;
+            if (fingerprint && entry.fingerprint && entry.fingerprint === fingerprint) return true;
+            return false;
+          });
+        }
+
+        async function trackWrongAnswer ({ questionText, correctAnswer, category, tossupId, userAnswer }) {
+          const cleanedQuestion = stripHtml(questionText || '').replace(/\s+/g, ' ').trim();
+          const question = truncateText(cleanedQuestion, 600);
+          const answer = (correctAnswer || '').toString().trim();
+          if (!question || !answer) {
+            return;
+          }
+          const fingerprint = buildFingerprint(cleanedQuestion, answer);
+          if (hasExistingEntry({ tossupId, fingerprint })) {
+            return;
+          }
+          const entry = {
+            id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+            tossupId: tossupId || null,
+            fingerprint,
+            category: (category || 'Science').toUpperCase(),
+            correctAnswer: answer,
+            userAnswer: (userAnswer || '').trim(),
+            questionSnippet: truncateText(cleanedQuestion, 140),
+            questionFull: cleanedQuestion,
+            summary: 'Generating topic summary...',
+            status: 'pending',
+            timestamp: Date.now()
+          };
+          state.topics.unshift(entry);
+          if (state.topics.length > MAX_TOPICS) {
+            state.topics.splice(MAX_TOPICS);
+          }
+          saveToStorage();
+          renderList();
+          runSummaryForEntry(entry);
+        }
+
+        function removeEntry (id) {
+          const idx = state.topics.findIndex((entry) => entry.id === id);
+          if (idx === -1) return;
+          state.topics.splice(idx, 1);
+          saveToStorage();
+          renderList();
+        }
+
+        async function retryEntry (id) {
+          const entry = state.topics.find((item) => item.id === id);
+          if (!entry) return;
+          runSummaryForEntry(entry);
+        }
+
+        async function refreshSummaries () {
+          for (const entry of state.topics) {
+            if (entry.status !== 'ready') {
+              await runSummaryForEntry(entry);
+            }
+          }
+        }
+
+        loadFromStorage();
+        renderList();
+        applyTopicsCollapsedState();
+
+        els.clear?.addEventListener('click', () => {
+          if (state.topics.length === 0) return;
+          if (window.confirm('Clear all tracked topics? This cannot be undone.')) {
+            state.topics = [];
+            saveToStorage();
+            renderList();
+          }
+        });
+
+        els.collapseToggle?.addEventListener('click', () => {
+          setTopicsCollapsed(!state.topicsCollapsed);
+        });
+
+        els.refresh?.addEventListener('click', () => {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+          refreshSummaries();
+        });
+
+        els.list?.addEventListener('click', (event) => {
+          const target = event.target.closest('[data-topic-remove], [data-topic-retry]');
+          if (!target) return;
+          const removeId = target.getAttribute('data-topic-remove');
+          const retryId = target.getAttribute('data-topic-retry');
+          if (removeId) {
+            removeEntry(removeId);
+          } else if (retryId) {
+            retryEntry(retryId);
+          }
+        });
+
+        window.sbTopicTracker = {
+          trackWrongAnswer,
+          retry: retryEntry,
+          refresh: refreshSummaries
+        };
       })();
     </script>
     <script type="module">
@@ -1482,7 +1931,320 @@
                 toggleCorrectButton.textContent = room.previous.isCorrect ? 'I was wrong' : 'I was right';
             }
         }
+
+        // Subject Statistics Functions
+        (function initializeSubjectStats () {
+            const container = document.getElementById('subject-stats-container');
+            const statsBody = document.getElementById('subject-stats-body');
+            const refreshButton = document.getElementById('refresh-subject-stats');
+            const collapseButton = document.getElementById('toggle-subject-stats');
+            const STATS_COLLAPSE_KEY = 'singleplayer-science-bowl-stats-collapsed';
+            let statsCollapsed = window.localStorage.getItem(STATS_COLLAPSE_KEY) === 'true';
+            let loading = false;
+
+            if (!container || !statsBody) {
+                console.error('Subject stats elements not found');
+                return;
+            }
+
+            function setLoadingState () {
+                statsBody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">Loading stats...</td></tr>';
+                if (refreshButton) {
+                    refreshButton.disabled = true;
+                    refreshButton.textContent = 'Loading...';
+                }
+            }
+
+            function setErrorState (message, muted = false) {
+                statsBody.innerHTML = `<tr><td colspan="5" class="text-center ${muted ? 'text-muted' : 'text-danger'}">${message}</td></tr>`;
+            }
+
+            function finishLoading () {
+                if (refreshButton) {
+                    refreshButton.disabled = false;
+                    refreshButton.textContent = 'Refresh';
+                }
+            }
+
+            function applyStatsCollapseState () {
+                container.classList.toggle('collapsed', statsCollapsed);
+                if (collapseButton) {
+                    collapseButton.setAttribute('aria-expanded', (!statsCollapsed).toString());
+                    collapseButton.title = statsCollapsed ? 'Expand stats' : 'Collapse stats';
+                }
+            }
+
+            async function fetchSubjectStats () {
+                const authResponse = await fetch('/auth/user-stats/science-bowl-subjects');
+                if (authResponse.ok) {
+                    const data = await authResponse.json();
+                    console.log('[SB Stats] Received account stats', data);
+                    return data.stats;
+                }
+
+                if (authResponse.status === 401) {
+                    const sessionResponse = await fetch('/api/science-bowl/session-stats');
+                    if (sessionResponse.ok) {
+                        const data = await sessionResponse.json();
+                        console.log('[SB Stats] Using session stats', data);
+                        return data.stats;
+                    }
+                    throw new Error('Session stats unavailable');
+                }
+
+                throw new Error(`Auth stats request failed (${authResponse.status})`);
+            }
+
+            async function loadSubjectStats () {
+                if (loading) { return; }
+                loading = true;
+                setLoadingState();
+
+                try {
+                    const stats = await fetchSubjectStats();
+                    const normalizedStats = Array.isArray(stats) ? stats : [];
+
+                    if (normalizedStats.length === 0) {
+                        setErrorState('No questions recorded yet', true);
+                    } else {
+                        let totalQuestions = 0;
+                        let totalCorrect = 0;
+                        let totalWrong = 0;
+
+                        const rows = normalizedStats.map((stat) => {
+                            totalQuestions += stat.total;
+                            totalCorrect += stat.correct;
+                            totalWrong += stat.wrong;
+                            const accuracy = stat.total > 0 ? ((stat.correct / stat.total) * 100).toFixed(1) : '0.0';
+                            return `
+                                <tr>
+                                    <th scope="row">${stat.subject}</th>
+                                    <td>${stat.total}</td>
+                                    <td>${stat.correct}</td>
+                                    <td>${stat.wrong}</td>
+                                    <td>${accuracy}%</td>
+                                </tr>
+                            `;
+                        });
+
+                        const totalAccuracy = totalQuestions > 0 ? ((totalCorrect / totalQuestions) * 100).toFixed(1) : '0.0';
+                        rows.push(`
+                            <tr class="table-info">
+                                <th scope="row"><strong>Total</strong></th>
+                                <td><strong>${totalQuestions}</strong></td>
+                                <td><strong>${totalCorrect}</strong></td>
+                                <td><strong>${totalWrong}</strong></td>
+                                <td><strong>${totalAccuracy}%</strong></td>
+                            </tr>
+                        `);
+
+                        statsBody.innerHTML = rows.join('');
+                    }
+                } catch (error) {
+                    console.error('[SB Stats] Error fetching subject stats:', error);
+                    const message = error?.message ?? 'Unknown error';
+                    const isAuthError = /log in/i.test(message);
+                    setErrorState(isAuthError ? 'Please log in to view statistics' : `Error: ${message}`, isAuthError);
+                } finally {
+                    loading = false;
+                    finishLoading();
+                }
+            }
+
+            applyStatsCollapseState();
+            collapseButton?.addEventListener('click', () => {
+                statsCollapsed = !statsCollapsed;
+                try {
+                    window.localStorage.setItem(STATS_COLLAPSE_KEY, statsCollapsed ? 'true' : 'false');
+                } catch (error) {
+                    console.warn('[SB Stats] Failed to persist collapse state', error);
+                }
+                applyStatsCollapseState();
+            });
+
+            refreshButton?.addEventListener('click', loadSubjectStats);
+            loadSubjectStats();
+
+            window.refreshScienceBowlSubjectStats = function refreshScienceBowlSubjectStats () {
+                loadSubjectStats();
+            };
+        })();
+
+        // Inline Science Bowl session stat recorder
+        (function initializeSessionStatRecorder () {
+            const WRONG_TO_CORRECT = 'wrong-to-correct';
+            if (!window.sbCorrectedTossupIds) {
+                window.sbCorrectedTossupIds = new Set();
+            }
+            if (typeof window.sbLastRecordedTossupId === 'undefined') {
+                window.sbLastRecordedTossupId = null;
+            }
+
+            function log (...args) {
+                console.log('[SB Session Stats]', ...args);
+            }
+
+            function recordSessionStat ({ subject, isCorrect, adjustment, tossupId } = {}) {
+                if (!subject) {
+                    log('Skipping stat update - no subject', { isCorrect, adjustment });
+                    return;
+                }
+
+                if (!adjustment && tossupId) {
+                    if (window.sbLastRecordedTossupId === tossupId) {
+                        log('Skipping duplicate stat update for tossup', { tossupId });
+                        return;
+                    }
+                    window.sbLastRecordedTossupId = tossupId;
+                }
+
+                if (adjustment === WRONG_TO_CORRECT && tossupId) {
+                    if (window.sbCorrectedTossupIds.has(tossupId)) {
+                        log('Skipping duplicate correction for tossup', { tossupId });
+                        return;
+                    }
+                    window.sbCorrectedTossupIds.add(tossupId);
+                }
+
+                const normalizedSubject = subject.toUpperCase();
+                log('Recording stat', { subject: normalizedSubject, originalSubject: subject, isCorrect, adjustment, tossupId });
+
+                const payload = adjustment
+                    ? { subject: normalizedSubject, adjustment }
+                    : { subject: normalizedSubject, isCorrect };
+
+                fetch('/api/science-bowl/session-stats', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                })
+                    .then(async response => {
+                        log('Response received', { status: response.status });
+                        if (!response.ok) {
+                            const errorText = await response.text();
+                            throw new Error(`Failed (${response.status}): ${errorText}`);
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        log('Session stats updated', data);
+                        window.refreshScienceBowlSubjectStats?.();
+                    })
+                    .catch(error => {
+                        console.error('[SB Session Stats] Error recording stat', { error, subject: normalizedSubject, isCorrect, adjustment, tossupId });
+                    });
+            }
+
+            window.sbRecordSessionStat = recordSessionStat;
+            window.sbSessionStatWrongToCorrect = WRONG_TO_CORRECT;
+
+            function handleMessageForStats (message) {
+                if (!message || message.type !== 'give-answer') {
+                    return;
+                }
+
+                const subject =
+                    message?.tossup?.subject ||
+                    window.room?.tossup?.subject ||
+                    window.room?.previous?.tossup?.subject ||
+                    '';
+                const isCorrect = message.isCorrect ?? false;
+                const tossupId =
+                    message?.tossup?._id ||
+                    window.room?.tossup?._id ||
+                    window.room?.previous?.tossup?._id ||
+                    null;
+
+                log('Intercepted give-answer message', {
+                    subject,
+                    isCorrect,
+                    tossupId,
+                    messageDirective: message.directive
+                });
+                recordSessionStat({ subject, isCorrect, tossupId });
+                if (!isCorrect && window.sbTopicTracker) {
+                    const questionText =
+                        (window.room?.questionSplit?.join(' ') || '') ||
+                        message?.tossup?.question ||
+                        document.getElementById('question')?.textContent ||
+                        '';
+                    const correctAnswer =
+                        message?.tossup?.answer ||
+                        window.room?.tossup?.answer ||
+                        window.room?.previous?.tossup?.answer ||
+                        ((document.getElementById('answer-display')?.textContent || '').replace(/^ANSWER:\s*/i, '').trim());
+                    const userAnswer =
+                        message?.givenAnswer ||
+                        message?.answer ||
+                        ((document.getElementById('user-answer')?.textContent || '').replace(/^YOUR ANSWER:\s*/i, '').trim());
+                    window.sbTopicTracker.trackWrongAnswer({
+                        questionText,
+                        correctAnswer,
+                        category: subject,
+                        tossupId,
+                        userAnswer
+                    });
+                }
+            }
+
+            function attachEmitterHook () {
+                if (!window.room || typeof window.room.emitMessage !== 'function') {
+                    console.warn('[SB Session Stats] room not ready, retrying...');
+                    setTimeout(attachEmitterHook, 250);
+                    return;
+                }
+
+                if (window.__sbSessionStatHooked) {
+                    return;
+                }
+                window.__sbSessionStatHooked = true;
+
+                const originalEmitMessage = window.room.emitMessage.bind(window.room);
+                window.room.emitMessage = function patchedEmitMessage (message) {
+                    try {
+                        handleMessageForStats(message);
+                    } catch (error) {
+                        console.error('[SB Session Stats] Failed to inspect message', error);
+                    }
+                    return originalEmitMessage(message);
+                };
+
+                log('Session stat recorder attached to emitMessage');
+            }
+
+            attachEmitterHook();
+        })();
     </script>
+    
+    <!-- Subject Statistics Table - Bottom Right Corner -->
+    <div id="subject-stats-container">
+        <div id="subject-stats-header" class="w-100">
+            <div class="d-flex align-items-center gap-2">
+                <h6 class="mb-0 flex-grow-1">Subject Statistics</h6>
+                <button class="btn btn-sm btn-outline-secondary" id="toggle-subject-stats" type="button" aria-expanded="true" title="Collapse stats">
+                    <i class="bi bi-chevron-down collapse-toggle-icon"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-secondary" id="refresh-subject-stats" type="button">Refresh</button>
+            </div>
+        </div>
+        <div id="subject-stats-body-wrap">
+            <div id="subject-stats-table-container" class="table-responsive">
+                <table class="table table-sm table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th scope="col">Subject</th>
+                            <th scope="col">Total</th>
+                            <th scope="col">Correct</th>
+                            <th scope="col">Wrong</th>
+                            <th scope="col">Accuracy</th>
+                        </tr>
+                    </thead>
+                    <tbody id="subject-stats-body">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 </body>
 
 </html> 

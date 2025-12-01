@@ -244,6 +244,10 @@ async function next ({ packetLength, oldTossup, tossup: nextTossup, type }) {
       multiplayer: false,
       pointValue
     });
+    recordSessionScienceBowlStat(room.previous.tossup?.subject, room.previous.isCorrect, room.previous.tossup?._id);
+    if (typeof window.refreshScienceBowlSubjectStats === 'function') {
+      window.refreshScienceBowlSubjectStats();
+    }
   }
 }
 
@@ -506,6 +510,41 @@ window.updateStatDisplay = function() {
   console.log('New score:', newScore);
   
   statline.textContent = `SCORE: ${newScore}`;
+}
+
+function recordSessionScienceBowlStat(subject, isCorrect, tossupId) {
+  if (typeof window.sbRecordSessionStat === 'function') {
+    window.sbRecordSessionStat({ subject, isCorrect, tossupId });
+    return;
+  }
+
+  if (!subject) {
+    console.warn('[Science Bowl] Skipping session stat (no subject)', { isCorrect, tossupId });
+    return;
+  }
+
+  const normalizedSubject = subject.toUpperCase();
+  console.log('[Science Bowl] Recording session stat (fallback)', { subject: normalizedSubject, originalSubject: subject, isCorrect, tossupId });
+
+  fetch('/api/science-bowl/session-stats', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ subject: normalizedSubject, isCorrect })
+  })
+    .then(async response => {
+      console.log('[Science Bowl] Session stat response', { status: response.status });
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`Session stat failed (${response.status}): ${text}`);
+      }
+      return response.json();
+    })
+    .then(data => {
+      console.log('[Science Bowl] Session stat updated payload', data);
+    })
+    .catch(error => {
+      console.error('[Science Bowl] Failed to record session stat', { error, subject: normalizedSubject, isCorrect, tossupId });
+    });
 }
 
 function updateTimerDisplay (time) {

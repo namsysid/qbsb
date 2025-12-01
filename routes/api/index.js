@@ -19,6 +19,7 @@ import setListRouter from './set-list.js';
 import tossupByIdRouter from './tossup-by-id.js';
 import scienceBowlQuery from './science-bowl/query.js';
 import scienceBowlRandomQuestion from './science-bowl/random-question.js';
+import scienceBowlSessionStats from './science-bowl/session-stats.js';
 import aiHelpRouter from './ai-help.js';
 
 import { Router } from 'express';
@@ -73,6 +74,7 @@ router.use('/set-list', setListRouter);
 router.use('/tossup-by-id', tossupByIdRouter);
 router.use('/science-bowl/query', scienceBowlQuery);
 router.use('/science-bowl/random-question', scienceBowlRandomQuestion);
+router.use('/science-bowl/session-stats', scienceBowlSessionStats);
 router.use('/ai-help', aiHelpRouter);
 
 export default router;
