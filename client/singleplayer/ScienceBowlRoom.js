@@ -118,7 +118,14 @@ export default class ScienceBowlRoom extends QuestionRoom {
     this.emitMessage({ type: 'reset-question' });
 
     // Split question into words for reading
-    this.questionSplit = question.question_text.split(' ').filter(word => word !== '');
+    const questionText = this.getNormalizedQuestionText(question);
+    if (!questionText) {
+      console.error('ScienceBowlRoom: Question missing text', { _id: question?._id, competition: question?.competition });
+      this.emitMessage({ type: 'no-questions-found' });
+      return;
+    }
+
+    this.questionSplit = questionText.split(' ').filter(word => word !== '');
     this.wordIndex = 0;
     this.tossupProgress = 'READING';
 
@@ -133,6 +140,32 @@ export default class ScienceBowlRoom extends QuestionRoom {
     // Start reading the question
     this.readQuestion(Date.now());
     return question;
+  }
+
+  getNormalizedQuestionText(question) {
+    const primary = typeof question?.question === 'string' ? question.question : '';
+    const fallback = typeof question?.question_text === 'string' ? question.question_text : '';
+    const raw = primary.trim().length > 0 ? primary : fallback;
+    const normalized = raw.replace(/\s+/g, ' ').trim();
+    if (!normalized) {
+      return '';
+    }
+
+    const words = normalized.split(' ');
+    if (words.length % 2 === 0) {
+      const half = words.length / 2;
+      const firstHalf = words.slice(0, half).join(' ').trim();
+      const secondHalf = words.slice(half).join(' ').trim();
+      if (firstHalf && firstHalf === secondHalf) {
+        console.warn('ScienceBowlRoom: Detected duplicated question text, trimming repeated copy', {
+          _id: question?._id,
+          competition: question?.competition
+        });
+        return firstHalf;
+      }
+    }
+
+    return normalized;
   }
 
   async readQuestion(expectedReadTime) {

@@ -409,9 +409,9 @@
     <div class="container-fluid py-3 px-xxl-5 position-fixed bottom-0 bg-body">
         <div class="row">
             <div class="col-12 col-lg-9" id="buttons">
-                <button class="btn btn-primary" id="start" onclick="console.log('Start button clicked. Current categories:', window.room.categoryManager.categories); console.log('Current query:', window.room.query); window.room.query.subjects = window.room.categoryManager.categories; console.log('Starting with categories:', window.room.categoryManager.categories); document.getElementById('answer-display').textContent = ''; document.getElementById('user-answer').textContent = ''; window.room.message('user', { type: 'start' });">Start/Next</button>
+                <button class="btn btn-primary" id="start">Start/Next</button>
                 <button class="btn btn-primary" id="pause" data-bs-placement="top" data-bs-toggle="tooltip" type="button"
-                    title="Shortcut: p key" onclick="handlePause()">Pause</button>
+                    title="Shortcut: p key">Pause</button>
                 <button class="btn btn-danger" id="toggle-settings" data-bs-placement="top" data-bs-toggle="tooltip" type="button"
                     title="Shortcut: e key" type="button">
                     <div class="d-flex align-items-center">
@@ -1538,77 +1538,94 @@
     </script>
     <script type="module">
         import { validateAnswer, formatValidationResult } from './answer-validator.js';
+        const usingModernClient = window.__sbModernScienceBowlClient === true;
+        const legacyHandlersActive = () => window.__sbModernHandlersReady !== true;
         
         // Handle buzz and answer submission
-        document.getElementById('buzz').addEventListener('click', function() {
-            console.log('Buzz button clicked');
-            if (!window.room) {
-                console.error('Room not initialized');
-                return;
-            }
-            
-            // Stop any ongoing speech
-            if (speechSynthesis.speaking) {
-                console.log('Stopping speech synthesis on buzz');
-                speechSynthesis.cancel();
-                currentUtterance = null;
-                isPaused = false;
-            }
-            
-            // Send buzz message to room - let the room handle everything
-            window.room.message('user', { type: 'buzz' });
-        });
+        const buzzButton = document.getElementById('buzz');
+        if (buzzButton) {
+            buzzButton.addEventListener('click', function() {
+                console.log('Buzz button clicked');
+                if (!window.room) {
+                    console.error('Room not initialized');
+                    return;
+                }
+                
+                // Stop any ongoing speech
+                if (speechSynthesis.speaking) {
+                    console.log('Stopping speech synthesis on buzz');
+                    speechSynthesis.cancel();
+                    currentUtterance = null;
+                    isPaused = false;
+                }
+                
+                // Only send the buzz message if the modern handlers are not active
+                if (legacyHandlersActive()) {
+                    window.room.message('user', { type: 'buzz' });
+                }
+            });
+        }
 
-        // Handle start/next button
-        document.getElementById('start').addEventListener('click', function() {
-            console.log('Start/Next button clicked');
-            if (!window.room) {
-                console.error('Room not initialized');
-                return;
-            }
-            
-            // Reset all states
-            window.room.buzzedIn = null;
-            window.room.buzzes = [];
-            window.room.tossupProgress = 'READING';
-            window.room.paused = false;
-            
-            // Reset UI elements
-            const buzzButton = document.getElementById('buzz');
-            const pauseButton = document.getElementById('pause');
-            const answerInput = document.getElementById('answer-input');
-            const answerInputGroup = document.getElementById('answer-input-group');
-            const toggleCorrectButton = document.getElementById('toggle-correct');
-            const answerDisplay = document.getElementById('answer-display');
-            const userAnswer = document.getElementById('user-answer');
-            const answer = document.getElementById('answer');
-            
-            // Enable/disable appropriate buttons
-            buzzButton.disabled = false;
-            buzzButton.textContent = 'Buzz';
-            pauseButton.disabled = false;
-            pauseButton.textContent = 'Pause';
-            
-            // Clear and hide answer input
-            answerInput.value = '';
-            answerInputGroup.classList.add('d-none');
-            
-            // Hide toggle correct button and clear answer displays
-            toggleCorrectButton.classList.add('d-none');
-            if (answerDisplay) answerDisplay.innerHTML = '';
-            if (userAnswer) userAnswer.innerHTML = '';
-            if (answer) answer.innerHTML = '';
-            
-            // Ensure categories are synced
-            window.room.query.subjects = window.room.categoryManager.categories;
-            console.log('Starting with categories:', window.room.categoryManager.categories);
-            
-            // Start new question
-            window.room.message('user', { type: 'start' });
-        });
+        // Handle start/next button (legacy fallback only)
+        const legacyStartButton = document.getElementById('start');
+        if (legacyStartButton) {
+            legacyStartButton.addEventListener('click', function() {
+                if (!legacyHandlersActive()) {
+                    return;
+                }
 
-        // Add keyboard shortcuts: space = Buzz, n = Start/Next, p = Pause/Resume
+                console.log('Start/Next button clicked');
+                if (!window.room) {
+                    console.error('Room not initialized');
+                    return;
+                }
+                
+                // Reset all states
+                window.room.buzzedIn = null;
+                window.room.buzzes = [];
+                window.room.tossupProgress = 'READING';
+                window.room.paused = false;
+                
+                // Reset UI elements
+                const buzzButtonEl = document.getElementById('buzz');
+                const pauseButton = document.getElementById('pause');
+                const answerInput = document.getElementById('answer-input');
+                const answerInputGroup = document.getElementById('answer-input-group');
+                const toggleCorrectButton = document.getElementById('toggle-correct');
+                const answerDisplay = document.getElementById('answer-display');
+                const userAnswer = document.getElementById('user-answer');
+                const answer = document.getElementById('answer');
+                
+                // Enable/disable appropriate buttons
+                buzzButtonEl.disabled = false;
+                buzzButtonEl.textContent = 'Buzz';
+                pauseButton.disabled = false;
+                pauseButton.textContent = 'Pause';
+                
+                // Clear and hide answer input
+                answerInput.value = '';
+                answerInputGroup.classList.add('d-none');
+                
+                // Hide toggle correct button and clear answer displays
+                toggleCorrectButton.classList.add('d-none');
+                if (answerDisplay) answerDisplay.innerHTML = '';
+                if (userAnswer) userAnswer.innerHTML = '';
+                if (answer) answer.innerHTML = '';
+                
+                // Ensure categories are synced
+                window.room.query.subjects = window.room.categoryManager.categories;
+                console.log('Starting with categories:', window.room.categoryManager.categories);
+                
+                // Start new question
+                window.room.message('user', { type: 'start' });
+            });
+        }
+
+        // Add keyboard shortcuts: space = Buzz, n = Start/Next, p = Pause/Resume (legacy only)
         document.addEventListener('keydown', (e) => {
+            if (!legacyHandlersActive()) {
+                return;
+            }
             const tag = (e.target.tagName || '').toUpperCase();
             const isTyping = tag === 'INPUT' || tag === 'TEXTAREA' || e.target.isContentEditable;
             if (isTyping) return;
@@ -1643,11 +1660,15 @@
             }
         });
 
-        // Handle answer submission
+        // Handle answer submission (legacy fallback only)
         document.getElementById('answer-form').addEventListener('submit', function(event) {
             event.preventDefault();
             event.stopPropagation();
             
+            if (!legacyHandlersActive()) {
+                return;
+            }
+
             const answer = document.getElementById('answer-input').value;
             console.log('Answer submitted:', answer);
             
@@ -1702,8 +1723,11 @@
             });
         });
 
-        // Initialize room state
+        // Initialize room state (legacy only)
         function initializeRoomState() {
+            if (!legacyHandlersActive()) {
+                return;
+            }
             if (!window.room) {
                 console.error('Room not initialized');
                 return;

@@ -27,6 +27,9 @@ const USERNAME = 'user';
 const VERSION = '2025-05-07';
 
 const room = new ClientScienceBowlRoom();
+// Flags that let inline legacy scripts know the modern handlers exist
+window.__sbModernScienceBowlClient = true;
+window.__sbModernHandlersReady = false;
 window.room = room; // Make room globally available
 room.players[USER_ID] = new Player(USER_ID);
 room.categoryManager = new ScienceBowlCategoryManager();
@@ -776,6 +779,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Initialize the room
+  window.__sbModernHandlersReady = true;
   room.message(USER_ID, { type: 'start' });
   
   // Add AI help functionality
