@@ -1767,10 +1767,15 @@
 
         // Text-to-speech functionality
         let speechSynthesis = window.speechSynthesis;
+        let speechPreferenceEnabled = false;
         let speechEnabled = false;
         let currentUtterance = null;
         let originalWordIndex = 0;
         let isPaused = false;
+        const ANSWER_CHOICE_GAP_MS = 1000;
+        let speechSegmentTimeout = null;
+        let speechSequenceActive = false;
+        let speechHandledThisQuestion = false;
 
         // Function to stop current speech
         function stopCurrentSpeech() {
@@ -1780,6 +1785,84 @@
                 currentUtterance = null;
                 isPaused = false;
             }
+            if (speechSegmentTimeout) {
+                clearTimeout(speechSegmentTimeout);
+                speechSegmentTimeout = null;
+            }
+            speechSequenceActive = false;
+            speechHandledThisQuestion = false;
+        }
+
+        function playSpeechSegments(segments, onComplete) {
+            if (!Array.isArray(segments) || segments.length === 0) {
+                if (typeof onComplete === 'function') {
+                    onComplete();
+                }
+                return;
+            }
+
+            stopCurrentSpeech();
+            speechSequenceActive = true;
+            let segmentIndex = 0;
+
+            const finishSequence = () => {
+                if (!speechSequenceActive) { return; }
+                speechSequenceActive = false;
+                if (speechSegmentTimeout) {
+                    clearTimeout(speechSegmentTimeout);
+                    speechSegmentTimeout = null;
+                }
+                speechEnabled = false;
+                if (typeof onComplete === 'function') {
+                    onComplete();
+                }
+            };
+
+            const speakSegment = () => {
+                if (!speechSequenceActive) { return; }
+                if (segmentIndex >= segments.length) {
+                    finishSequence();
+                    return;
+                }
+
+                const { text, pauseAfter = 0 } = segments[segmentIndex];
+                currentUtterance = new SpeechSynthesisUtterance(text);
+                currentUtterance.rate = 1.0;
+
+                currentUtterance.onend = () => {
+                    if (!speechSequenceActive) { return; }
+                    currentUtterance = null;
+                    if (pauseAfter > 0) {
+                        speechSegmentTimeout = setTimeout(() => {
+                            speechSegmentTimeout = null;
+                            segmentIndex++;
+                            speakSegment();
+                        }, pauseAfter);
+                    } else {
+                        segmentIndex++;
+                        speakSegment();
+                    }
+                };
+
+                currentUtterance.onerror = (event) => {
+                    console.error('Speech synthesis error:', event);
+                    if (!speechSequenceActive) { return; }
+                    speechSequenceActive = false;
+                    currentUtterance = null;
+                    if (speechSegmentTimeout) {
+                        clearTimeout(speechSegmentTimeout);
+                        speechSegmentTimeout = null;
+                    }
+                    if (typeof onComplete === 'function') {
+                        onComplete();
+                    }
+                };
+
+                isPaused = false;
+                speechSynthesis.speak(currentUtterance);
+            };
+
+            speakSegment();
         }
 
         // Function to update question display
@@ -1812,52 +1895,59 @@
                     questionSplit: this.questionSplit?.length
                 });
 
+                if (this.wordIndex === 0) {
+                    speechHandledThisQuestion = false;
+                }
+
                 if (speechEnabled) {
-                    // If speech is enabled, pause the text display
-                    if (this.wordIndex === 0 || this.tossupProgress === 'READING') {
+                    if (!speechHandledThisQuestion && (this.wordIndex === 0 || this.tossupProgress === 'READING')) {
                         // Store the original word index when starting speech
                         originalWordIndex = 0;
+                        speechHandledThisQuestion = true;
                         // Display audio mode message
                         updateQuestionDisplay('<div class="alert alert-info">Reading question in audio mode, please turn up volume</div>');
+                        if (typeof window.lockQuestionRevealUntilAnswer === 'function') {
+                            window.lockQuestionRevealUntilAnswer();
+                        }
                         
                         // Only start speech if we have a question and no speech is currently playing
-                        if (this.questionSplit && this.questionSplit.length > 0 && !speechSynthesis.speaking) {
-                            console.log('Starting speech with question:', this.questionSplit.join(' '));
-                            // Read the entire question
+                        if (this.questionSplit && this.questionSplit.length > 0 && !speechSynthesis.speaking && !speechSequenceActive) {
                             const fullQuestion = this.questionSplit.join(' ');
-                            currentUtterance = new SpeechSynthesisUtterance(fullQuestion);
-                            currentUtterance.rate = 1.0;
+                            const answerChoices = Array.isArray(this.tossup?.options)
+                                ? this.tossup.options
+                                    .map(option => typeof option === 'string' ? option.trim() : '')
+                                    .filter(option => option.length > 0)
+                                : [];
                             
-                            // Add event listeners for speech synthesis
-                            currentUtterance.onstart = () => {
-                                console.log('Speech started');
-                            };
-                            
-                            currentUtterance.onend = () => {
+                            const speechSegments = [{
+                                text: fullQuestion,
+                                pauseAfter: answerChoices.length ? ANSWER_CHOICE_GAP_MS : 0
+                            }];
+
+                            answerChoices.forEach((choice, index) => {
+                                speechSegments.push({
+                                    text: choice,
+                                    pauseAfter: (index === answerChoices.length - 1) ? 0 : ANSWER_CHOICE_GAP_MS
+                                });
+                            });
+
+                            console.log('Starting speech with segments:', speechSegments);
+                            playSpeechSegments(speechSegments, () => {
                                 console.log('Speech ended');
-                                // When speech ends, restore the original reading functionality
-                                speechEnabled = false;
-                                document.getElementById('toggle-speech').checked = false;
                                 this.wordIndex = originalWordIndex;
                                 originalReadQuestion.call(this, timestamp);
-                            };
-                            
-                            currentUtterance.onerror = (event) => {
-                                console.error('Speech synthesis error:', event);
-                            };
-                            
-                            // Ensure we're not in a paused state
-                            isPaused = false;
-                            speechSynthesis.cancel(); // Cancel any existing speech
-                            speechSynthesis.speak(currentUtterance);
+                            });
+                            return;
                         } else {
                             console.log('No question available for speech or speech already in progress');
                         }
                     }
-                } else {
-                    // If speech is disabled, use the original reading method
-                    originalReadQuestion.call(this, timestamp);
+
+                    // While audio mode is active, defer to speech synthesis instead of the default reader
+                    return;
                 }
+
+                originalReadQuestion.call(this, timestamp);
             };
 
             // Store the original message method
@@ -1890,6 +1980,8 @@
                     } else if (data.type === 'start' || data.type === 'next') {
                         console.log('Start/Next button pressed');
                         // Stop current speech when starting/next question
+                        speechEnabled = speechPreferenceEnabled;
+                        speechHandledThisQuestion = false;
                         stopCurrentSpeech();
                     }
                 }
@@ -1899,15 +1991,26 @@
         // Initialize speech synthesis when the page loads
         document.addEventListener('DOMContentLoaded', () => {
             console.log('DOM loaded, initializing speech synthesis...');
+            const toggle = document.getElementById('toggle-speech');
+            speechPreferenceEnabled = toggle?.checked ?? false;
+            speechEnabled = speechPreferenceEnabled;
             initializeSpeechSynthesis();
         });
 
         // Handle speech toggle
         document.getElementById('toggle-speech').addEventListener('change', function(e) {
             console.log('Speech toggle changed:', e.target.checked);
-            speechEnabled = e.target.checked;
+            speechPreferenceEnabled = e.target.checked;
+            speechEnabled = speechPreferenceEnabled;
             if (!speechEnabled) {
                 stopCurrentSpeech();
+                if (typeof window.unlockQuestionRevealUntilAnswer === 'function') {
+                    window.unlockQuestionRevealUntilAnswer();
+                }
+            } else if (speechPreferenceEnabled && window.room?.readQuestion) {
+                // Restart reading with speech if enabled mid-question
+                speechHandledThisQuestion = false;
+                window.room.readQuestion(Date.now());
             }
         });
 

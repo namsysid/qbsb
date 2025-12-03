@@ -34,6 +34,25 @@ window.room = room; // Make room globally available
 room.players[USER_ID] = new Player(USER_ID);
 room.categoryManager = new ScienceBowlCategoryManager();
 
+let questionBufferHtml = '';
+let questionLockActive = false;
+let questionLockedUntilAnswer = false;
+
+function lockQuestionRevealUntilAnswer () {
+  questionLockActive = true;
+  questionLockedUntilAnswer = true;
+  syncQuestionDisplayFromBuffer();
+}
+
+function unlockQuestionRevealUntilAnswer () {
+  questionLockActive = false;
+  questionLockedUntilAnswer = false;
+  syncQuestionDisplayFromBuffer();
+}
+
+window.lockQuestionRevealUntilAnswer = lockQuestionRevealUntilAnswer;
+window.unlockQuestionRevealUntilAnswer = unlockQuestionRevealUntilAnswer;
+
 // Load saved category state
 const savedCategoryState = JSON.parse(window.localStorage.getItem('singleplayer-science-bowl-categories') || '{}');
 console.log('Loading saved category state:', savedCategoryState);
@@ -70,7 +89,7 @@ function onmessage (message) {
     case 'no-questions-found': return noQuestionsFound(data);
     case 'pause': return pause(data);
     case 'reveal-answer': return revealAnswer(data);
-    case 'reset-question': return document.getElementById('question').textContent = '';
+    case 'reset-question': return resetQuestionDisplay();
     case 'set-categories': return setCategories(data);
     case 'set-difficulties': return setDifficulties(data);
     case 'set-mode': return setMode(data);
@@ -97,6 +116,10 @@ function onmessage (message) {
 function buzz ({ timer, userId, username }) {
   if (audio.soundEffects) { audio.buzz.play(); }
   if (userId !== USER_ID) { return; }
+
+  if (!questionLockActive) {
+    revealBufferedQuestion();
+  }
 
   document.getElementById('pause').disabled = true;
   const typeToAnswer = (function () {
@@ -187,6 +210,7 @@ async function next ({ packetLength, oldTossup, tossup: nextTossup, type }) {
     userAnswer: document.getElementById('user-answer'),
     toggleCorrect: document.getElementById('toggle-correct')
   };
+  resetQuestionDisplay();
 
   console.log('Found elements:', {
     question: !!elements.question,
@@ -196,7 +220,6 @@ async function next ({ packetLength, oldTossup, tossup: nextTossup, type }) {
   });
 
   // Clear all text content
-  if (elements.question) elements.question.textContent = '';
   if (elements.answerDisplay) elements.answerDisplay.textContent = '';
   if (elements.userAnswer) elements.userAnswer.textContent = '';
   if (elements.toggleCorrect) {
@@ -294,6 +317,8 @@ function revealAnswer ({ answer, question, correctAnswer, isCorrect }) {
     toggleCorrect: document.getElementById('toggle-correct')
   };
 
+  revealBufferedQuestion(typeof question === 'string' ? question : undefined, { force: true });
+
   console.log('Found elements in revealAnswer:', {
     question: !!elements.question,
     answerDisplay: !!elements.answerDisplay,
@@ -306,7 +331,11 @@ function revealAnswer ({ answer, question, correctAnswer, isCorrect }) {
 
   if (elements.question) {
     console.log('Setting question content');
-    elements.question.innerHTML = question;
+    if (typeof question === 'string') {
+      elements.question.innerHTML = question;
+    } else {
+      elements.question.innerHTML = questionBufferHtml;
+    }
   }
 
   // Use the correct answer from the tossup if available
@@ -464,23 +493,60 @@ function toggleTypeToAnswer ({ typeToAnswer }) {
   window.localStorage.setItem('singleplayer-science-bowl-settings', JSON.stringify({ ...room.settings, version: settingsVersion }));
 }
 
-function updateQuestion ({ word }) {
+function syncQuestionDisplayFromBuffer () {
   const questionElement = document.getElementById('question');
-  if (!questionElement) return;
-
-  // If the word starts with a newline, it's a multiple-choice option
-  if (word.startsWith('\n')) {
-    // Add a line break before the option
-    questionElement.innerHTML += '<br>';
-    // Add the option text
-    questionElement.innerHTML += word.substring(1);
-  } else {
-    // For regular question text, add a space if needed
-    if (questionElement.innerHTML && !questionElement.innerHTML.endsWith(' ')) {
-      questionElement.innerHTML += ' ';
-    }
-    questionElement.innerHTML += word;
+  if (!questionElement) { return; }
+  if (questionLockActive && questionLockedUntilAnswer) {
+    questionElement.innerHTML = '';
+    return;
   }
+  questionElement.innerHTML = questionBufferHtml || '';
+}
+
+function resetQuestionDisplay () {
+  questionBufferHtml = '';
+  questionLockActive = false;
+  questionLockedUntilAnswer = false;
+  const questionElement = document.getElementById('question');
+  if (questionElement) {
+    questionElement.innerHTML = '';
+  }
+  const answerElement = document.getElementById('answer-display');
+  if (answerElement) {
+    answerElement.textContent = '';
+  }
+  const userAnswerElement = document.getElementById('user-answer');
+  if (userAnswerElement) {
+    userAnswerElement.textContent = '';
+  }
+}
+
+function revealBufferedQuestion (forcedContent, options = {}) {
+  const { force = false } = options;
+  if (typeof forcedContent === 'string') {
+    questionBufferHtml = forcedContent;
+  }
+  if (questionLockedUntilAnswer && !force) {
+    return;
+  }
+  questionLockedUntilAnswer = false;
+  questionLockActive = false;
+  syncQuestionDisplayFromBuffer();
+}
+
+function updateQuestion ({ word }) {
+  if (typeof word !== 'string' || word.length === 0) { return; }
+
+  if (word.startsWith('\n')) {
+    questionBufferHtml += '<br>' + word.substring(1);
+  } else {
+    if (questionBufferHtml && !questionBufferHtml.endsWith(' ') && !questionBufferHtml.endsWith('<br>')) {
+      questionBufferHtml += ' ';
+    }
+    questionBufferHtml += word;
+  }
+
+  syncQuestionDisplayFromBuffer();
   
   // Don't show AI help section here - wait until answer is revealed
   // console.log('updateQuestion called - NOT showing AI help yet');
