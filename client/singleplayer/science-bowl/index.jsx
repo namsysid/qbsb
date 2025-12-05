@@ -32,6 +32,7 @@ window.__sbModernScienceBowlClient = true;
 window.__sbModernHandlersReady = false;
 window.room = room; // Make room globally available
 room.players[USER_ID] = new Player(USER_ID);
+room.players[USER_ID].score = 0;
 room.categoryManager = new ScienceBowlCategoryManager();
 
 let questionBufferHtml = '';
@@ -134,7 +135,13 @@ function buzz ({ timer, userId, username }) {
 }
 
 function clearStats ({ userId }) {
-  updateStatDisplay(room.players[userId]);
+  const player = room.players[userId];
+  if (player) {
+    player.score = 0;
+    updateStatDisplay(player);
+    return;
+  }
+  updateStatDisplay();
 }
 
 function endOfSet () {
@@ -150,12 +157,19 @@ async function giveAnswer ({ directive, directedPrompt, perQuestionCelerity, sco
   }
 
   if (userId === USER_ID) {
-    // Update the player's score based on isCorrect
+    const player = room.players[USER_ID];
+    const isTossup = tossup?.isTossup === true;
+    const pointsForQuestion = isTossup ? 4 : 10;
+    const buzzedDuringReading = isTossup && typeof perQuestionCelerity === 'number' && perQuestionCelerity > 0;
+    player.score = (typeof player.score === 'number' && !Number.isNaN(player.score)) ? player.score : 0;
+
     if (isCorrect) {
-      const pointValue = tossup?.isTossup ? 4 : 10; // 4 points for tossup, 10 for bonus
-      room.players[USER_ID].score += pointValue;
-      updateStatDisplay();
+      player.score += pointsForQuestion;
+    } else if (buzzedDuringReading) {
+      player.score -= 4;
     }
+
+    updateStatDisplay(player);
   } else if (aiBot.active) {
     upsertPlayerItem(aiBot.player);
   }
@@ -553,37 +567,23 @@ function updateQuestion ({ word }) {
 }
 
 // Make updateStatDisplay globally accessible
-window.updateStatDisplay = function() {
-  console.log('updateStatDisplay called');
-  console.log('Current room state:', {
-    room: window.room,
-    tossup: window.room?.tossup,
-    isTossup: window.room?.tossup?.isTossup
-  });
-
-  // Get the current score from the statline element
+window.updateStatDisplay = function(player) {
+  const activePlayer = player || room.players[USER_ID];
   const statline = document.getElementById('statline');
-  const currentScore = parseInt(statline.textContent.split(': ')[1]) || 0;
-  console.log('Current score:', currentScore);
-  
-  // Check if current question is a tossup
-  // A question is a tossup if isTossup is true
-  const isTossup = window.room?.tossup?.isTossup === true;
-  console.log('Is tossup question?', isTossup, 'because isTossup is:', window.room?.tossup?.isTossup);
-  
-  // Increment score by 4 for tossup, 10 for bonus
-  const pointsToAdd = isTossup ? 4 : 10;
-  console.log('Points to add:', pointsToAdd);
-  
-  const newScore = currentScore + pointsToAdd;
-  console.log('New score:', newScore);
-  
-  statline.textContent = `SCORE: ${newScore}`;
-}
+  if (!statline) { return; }
+  const score = (activePlayer && typeof activePlayer.score === 'number' && !Number.isNaN(activePlayer.score))
+    ? activePlayer.score
+    : (parseInt(statline.textContent.split(': ')[1]) || 0);
+  statline.textContent = `SCORE: ${score}`;
+};
 
 function recordSessionScienceBowlStat(subject, isCorrect, tossupId) {
+  const previous = window.room?.previous;
+  const isTossup = previous?.tossup?.isTossup === true;
+  const buzzedEarly = Boolean(isTossup && previous?.endOfQuestion === false);
+
   if (typeof window.sbRecordSessionStat === 'function') {
-    window.sbRecordSessionStat({ subject, isCorrect, tossupId });
+    window.sbRecordSessionStat({ subject, isCorrect, tossupId, isTossup, buzzedEarly });
     return;
   }
 
@@ -593,12 +593,12 @@ function recordSessionScienceBowlStat(subject, isCorrect, tossupId) {
   }
 
   const normalizedSubject = subject.toUpperCase();
-  console.log('[Science Bowl] Recording session stat (fallback)', { subject: normalizedSubject, originalSubject: subject, isCorrect, tossupId });
+  console.log('[Science Bowl] Recording session stat (fallback)', { subject: normalizedSubject, originalSubject: subject, isCorrect, tossupId, isTossup, buzzedEarly });
 
   fetch('/api/science-bowl/session-stats', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ subject: normalizedSubject, isCorrect })
+    body: JSON.stringify({ subject: normalizedSubject, isCorrect, isTossup, buzzedEarly })
   })
     .then(async response => {
       console.log('[Science Bowl] Session stat response', { status: response.status });
@@ -612,7 +612,7 @@ function recordSessionScienceBowlStat(subject, isCorrect, tossupId) {
       console.log('[Science Bowl] Session stat updated payload', data);
     })
     .catch(error => {
-      console.error('[Science Bowl] Failed to record session stat', { error, subject: normalizedSubject, isCorrect, tossupId });
+      console.error('[Science Bowl] Failed to record session stat', { error, subject: normalizedSubject, isCorrect, tossupId, isTossup, buzzedEarly });
     });
 }
 

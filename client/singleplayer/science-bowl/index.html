@@ -622,11 +622,13 @@
     <script>
         // Initialize updateStatDisplay if not already defined
         if (typeof window.updateStatDisplay !== 'function') {
-            window.updateStatDisplay = function() {
+            window.updateStatDisplay = function(player) {
                 const statline = document.getElementById('statline');
-                const currentScore = parseInt(statline.textContent.split(': ')[1]) || 0;
-                const newScore = currentScore + 4;
-                statline.textContent = `SCORE: ${newScore}`;
+                if (!statline) { return; }
+                const score = (player && typeof player.score === 'number' && !Number.isNaN(player.score))
+                    ? player.score
+                    : (parseInt(statline.textContent.split(': ')[1]) || 0);
+                statline.textContent = `SCORE: ${score}`;
             };
         }
 
@@ -658,6 +660,22 @@
             
             window.room.message('user', { type: 'pause' });
         }
+    </script>
+    <script>
+        (function initializeSubjectAdjustmentHelpers () {
+            window.sbSubjectStatAdjustments = window.sbSubjectStatAdjustments || {};
+            window.sbTrackSubjectStatAdjustment = function trackSubjectAdjustment (subject, deltas = {}) {
+                if (!subject) { return; }
+                const normalized = (typeof subject === 'string' ? subject.toUpperCase() : subject) || '';
+                if (!normalized) { return; }
+                const current = window.sbSubjectStatAdjustments[normalized] || { correct: 0, wrong: 0, sped: 0, negs: 0 };
+                if (typeof deltas.correct === 'number') { current.correct += deltas.correct; }
+                if (typeof deltas.wrong === 'number') { current.wrong += deltas.wrong; }
+                if (typeof deltas.sped === 'number') { current.sped += deltas.sped; }
+                if (typeof deltas.negs === 'number') { current.negs += deltas.negs; }
+                window.sbSubjectStatAdjustments[normalized] = current;
+            };
+        })();
     </script>
 
     <!-- Inline AI Help logic to ensure it runs regardless of module timing -->
@@ -940,7 +958,16 @@
               try {
                 if (!wasAlreadyCorrected && window.room && room.previous && room.previous.isCorrect === false) {
                   room.previous.isCorrect = true;
-                  if (typeof window.updateStatDisplay === 'function') {
+                  const player = window.room?.players?.user;
+                  if (player) {
+                    const isTossup = room.previous?.tossup?.isTossup === true;
+                    const increment = isTossup ? 4 : 10;
+                    const currentScore = (typeof player.score === 'number' && !Number.isNaN(player.score)) ? player.score : 0;
+                    player.score = currentScore + increment;
+                    if (typeof window.updateStatDisplay === 'function') {
+                      window.updateStatDisplay(player);
+                    }
+                  } else if (typeof window.updateStatDisplay === 'function') {
                     window.updateStatDisplay();
                   }
                 }
@@ -952,11 +979,26 @@
               }
 
               const statSubject = window.room?.previous?.tossup?.subject || window.room?.tossup?.subject || '';
+              const previousState = window.room?.previous;
+              const isTossup = (previousState?.tossup?.isTossup ?? window.room?.tossup?.isTossup) === true;
+              const buzzedEarly = Boolean(isTossup && previousState?.endOfQuestion === false);
+              const wasNeg = buzzedEarly && previousState?.isCorrect === false;
+              const shouldSped = buzzedEarly && isTossup;
               if (typeof window.sbRecordSessionStat === 'function') {
                 window.sbRecordSessionStat({
                   subject: statSubject,
                   adjustment: window.sbSessionStatWrongToCorrect || 'wrong-to-correct',
-                  tossupId
+                  tossupId,
+                  wasNeg,
+                  shouldSped
+                });
+              }
+              if (typeof window.sbTrackSubjectStatAdjustment === 'function') {
+                window.sbTrackSubjectStatAdjustment(statSubject, {
+                  correct: 1,
+                  wrong: -1,
+                  sped: shouldSped ? 1 : 0,
+                  negs: wasNeg ? -1 : 0
                 });
               }
               window.refreshScienceBowlSubjectStats?.();
@@ -1697,9 +1739,16 @@
             const validationResult = validateAnswer(answer, correctAnswer, strictness);
             console.log('Answer validation result:', validationResult);
             
-            // If answer is correct, update the score
+            // If answer is correct, update the UI score (legacy fallback only)
             if (validationResult.isCorrect) {
-                updateStatDisplay();
+                const statline = document.getElementById('statline');
+                const isTossup = window.room?.tossup?.isTossup === true;
+                const increment = isTossup ? 4 : 10;
+                const currentScore = statline ? (parseInt(statline.textContent.split(': ')[1]) || 0) : 0;
+                const newScore = currentScore + increment;
+                if (statline) {
+                    statline.textContent = `SCORE: ${newScore}`;
+                }
             }
             
             // Call revealAnswer with the necessary data
@@ -2075,7 +2124,7 @@
             }
 
             function setLoadingState () {
-                statsBody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">Loading stats...</td></tr>';
+                statsBody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">Loading stats...</td></tr>';
                 if (refreshButton) {
                     refreshButton.disabled = true;
                     refreshButton.textContent = 'Loading...';
@@ -2083,7 +2132,7 @@
             }
 
             function setErrorState (message, muted = false) {
-                statsBody.innerHTML = `<tr><td colspan="5" class="text-center ${muted ? 'text-muted' : 'text-danger'}">${message}</td></tr>`;
+                statsBody.innerHTML = `<tr><td colspan="7" class="text-center ${muted ? 'text-muted' : 'text-danger'}">${message}</td></tr>`;
             }
 
             function finishLoading () {
@@ -2101,12 +2150,31 @@
                 }
             }
 
+            function applySubjectAdjustments (stats, adjustments) {
+                if (!adjustments) { return stats; }
+                return stats.map(stat => {
+                    const subjectKey = (typeof stat.subject === 'string' ? stat.subject.toUpperCase() : stat.subject) || '';
+                    const delta = adjustments[subjectKey] || {};
+                    const correct = Math.max(0, (stat.correct ?? 0) + (delta.correct ?? 0));
+                    const wrong = Math.max(0, (stat.wrong ?? 0) + (delta.wrong ?? 0));
+                    const sped = Math.max(0, (stat.sped ?? 0) + (delta.sped ?? 0));
+                    const negs = Math.max(0, (stat.negs ?? 0) + (delta.negs ?? 0));
+                    return {
+                        ...stat,
+                        correct,
+                        wrong,
+                        sped,
+                        negs
+                    };
+                });
+            }
+
             async function fetchSubjectStats () {
                 const authResponse = await fetch('/auth/user-stats/science-bowl-subjects');
                 if (authResponse.ok) {
                     const data = await authResponse.json();
                     console.log('[SB Stats] Received account stats', data);
-                    return data.stats;
+                    return { stats: data.stats, source: data.source ?? 'account' };
                 }
 
                 if (authResponse.status === 401) {
@@ -2114,7 +2182,7 @@
                     if (sessionResponse.ok) {
                         const data = await sessionResponse.json();
                         console.log('[SB Stats] Using session stats', data);
-                        return data.stats;
+                        return { stats: data.stats, source: data.source ?? 'session' };
                     }
                     throw new Error('Session stats unavailable');
                 }
@@ -2128,8 +2196,13 @@
                 setLoadingState();
 
                 try {
-                    const stats = await fetchSubjectStats();
-                    const normalizedStats = Array.isArray(stats) ? stats : [];
+                    const { stats, source } = await fetchSubjectStats();
+                    const statsSource = source || 'session';
+                    let normalizedStats = Array.isArray(stats) ? stats : [];
+
+                    if (statsSource === 'account' && window.sbSubjectStatAdjustments && Object.keys(window.sbSubjectStatAdjustments).length > 0) {
+                        normalizedStats = applySubjectAdjustments(normalizedStats, window.sbSubjectStatAdjustments);
+                    }
 
                     if (normalizedStats.length === 0) {
                         setErrorState('No questions recorded yet', true);
@@ -2137,11 +2210,17 @@
                         let totalQuestions = 0;
                         let totalCorrect = 0;
                         let totalWrong = 0;
+                        let totalSped = 0;
+                        let totalNegs = 0;
 
                         const rows = normalizedStats.map((stat) => {
                             totalQuestions += stat.total;
                             totalCorrect += stat.correct;
                             totalWrong += stat.wrong;
+                            totalSped += stat.sped ?? 0;
+                            totalNegs += stat.negs ?? 0;
+                            const sped = stat.sped ?? 0;
+                            const negs = stat.negs ?? 0;
                             const accuracy = stat.total > 0 ? ((stat.correct / stat.total) * 100).toFixed(1) : '0.0';
                             return `
                                 <tr>
@@ -2149,6 +2228,8 @@
                                     <td>${stat.total}</td>
                                     <td>${stat.correct}</td>
                                     <td>${stat.wrong}</td>
+                                    <td>${sped}</td>
+                                    <td>${negs}</td>
                                     <td>${accuracy}%</td>
                                 </tr>
                             `;
@@ -2161,6 +2242,8 @@
                                 <td><strong>${totalQuestions}</strong></td>
                                 <td><strong>${totalCorrect}</strong></td>
                                 <td><strong>${totalWrong}</strong></td>
+                                <td><strong>${totalSped}</strong></td>
+                                <td><strong>${totalNegs}</strong></td>
                                 <td><strong>${totalAccuracy}%</strong></td>
                             </tr>
                         `);
@@ -2211,7 +2294,7 @@
                 console.log('[SB Session Stats]', ...args);
             }
 
-            function recordSessionStat ({ subject, isCorrect, adjustment, tossupId } = {}) {
+            function recordSessionStat ({ subject, isCorrect, adjustment, tossupId, isTossup, buzzedEarly, wasNeg, shouldSped } = {}) {
                 if (!subject) {
                     log('Skipping stat update - no subject', { isCorrect, adjustment });
                     return;
@@ -2237,8 +2320,8 @@
                 log('Recording stat', { subject: normalizedSubject, originalSubject: subject, isCorrect, adjustment, tossupId });
 
                 const payload = adjustment
-                    ? { subject: normalizedSubject, adjustment }
-                    : { subject: normalizedSubject, isCorrect };
+                    ? { subject: normalizedSubject, adjustment, wasNeg, shouldSped }
+                    : { subject: normalizedSubject, isCorrect, isTossup, buzzedEarly };
 
                 fetch('/api/science-bowl/session-stats', {
                     method: 'POST',
@@ -2282,13 +2365,22 @@
                     window.room?.previous?.tossup?._id ||
                     null;
 
+                const isTossup = (message?.tossup?.isTossup ?? window.room?.tossup?.isTossup ?? window.room?.previous?.tossup?.isTossup) === true;
+                const celerityFromMessage = typeof message?.perQuestionCelerity === 'number' ? message.perQuestionCelerity : null;
+                const celerityFromRoom = typeof window.room?.previous?.celerity === 'number' ? window.room.previous.celerity : null;
+                const celerity = celerityFromMessage ?? celerityFromRoom;
+                const endOfQuestion = message?.endOfQuestion ?? window.room?.previous?.endOfQuestion ?? null;
+                const buzzedEarly = Boolean(isTossup && ((endOfQuestion === false) || (typeof celerity === 'number' && celerity > 0)));
+
                 log('Intercepted give-answer message', {
                     subject,
                     isCorrect,
                     tossupId,
-                    messageDirective: message.directive
+                    messageDirective: message.directive,
+                    isTossup,
+                    buzzedEarly
                 });
-                recordSessionStat({ subject, isCorrect, tossupId });
+                recordSessionStat({ subject, isCorrect, tossupId, isTossup, buzzedEarly });
                 if (!isCorrect && window.sbTopicTracker) {
                     const questionText =
                         (window.room?.questionSplit?.join(' ') || '') ||
@@ -2363,6 +2455,8 @@
                             <th scope="col">Total</th>
                             <th scope="col">Correct</th>
                             <th scope="col">Wrong</th>
+                            <th scope="col">Sped</th>
+                            <th scope="col">Negs</th>
                             <th scope="col">Accuracy</th>
                         </tr>
                     </thead>

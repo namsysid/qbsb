@@ -10,12 +10,14 @@ function ensureSessionStats(session) {
 
   for (const subject of SBCATEGORIES) {
     if (!session.scienceBowlStats[subject]) {
-      session.scienceBowlStats[subject] = { total: 0, correct: 0, wrong: 0 };
+      session.scienceBowlStats[subject] = { total: 0, correct: 0, wrong: 0, sped: 0, negs: 0 };
     } else {
       const current = session.scienceBowlStats[subject];
       current.total = current.total ?? 0;
       current.correct = current.correct ?? 0;
       current.wrong = current.wrong ?? 0;
+      current.sped = current.sped ?? 0;
+      current.negs = current.negs ?? 0;
     }
   }
 
@@ -24,19 +26,33 @@ function ensureSessionStats(session) {
 
 function formatStats(sessionStats) {
   return SBCATEGORIES.map((subject) => {
-    const { total = 0, correct = 0, wrong = 0 } = sessionStats[subject] || {};
-    return { subject, total, correct, wrong };
+    const { total = 0, correct = 0, wrong = 0, sped = 0, negs = 0 } = sessionStats[subject] || {};
+    return { subject, total, correct, wrong, sped, negs };
   });
+}
+
+function parseBoolean(value) {
+  if (typeof value === 'boolean') { return value; }
+  if (typeof value === 'number') { return value !== 0; }
+  if (typeof value === 'string') {
+    const lowered = value.toLowerCase();
+    return lowered === 'true' || lowered === '1';
+  }
+  return false;
 }
 
 router.get('/', (req, res) => {
   const stats = ensureSessionStats(req.session);
-  res.json({ stats: formatStats(stats) });
+  res.json({ source: 'session', stats: formatStats(stats) });
 });
 
 router.post('/', (req, res) => {
-  const { subject, isCorrect, adjustment } = req.body ?? {};
+  const { subject, isCorrect, adjustment, wasNeg, shouldSped } = req.body ?? {};
   const normalizedSubject = typeof subject === 'string' ? subject.toUpperCase() : null;
+  const isTossup = parseBoolean(req.body?.isTossup);
+  const buzzedEarly = parseBoolean(req.body?.buzzedEarly);
+  const adjustmentWasNeg = parseBoolean(wasNeg);
+  const adjustmentShouldSped = parseBoolean(shouldSped);
   console.log('[Science Bowl Session Stats] POST received', { subject, normalizedSubject, isCorrect, adjustment, sessionId: req.sessionID });
   if (!normalizedSubject || !SBCATEGORIES.includes(normalizedSubject)) {
     console.warn('[Science Bowl Session Stats] Rejecting invalid subject', { subject, normalizedSubject });
@@ -51,9 +67,15 @@ router.post('/', (req, res) => {
       subjectStats.wrong -= 1;
     }
     subjectStats.correct += 1;
+    if (adjustmentWasNeg && subjectStats.negs > 0) {
+      subjectStats.negs -= 1;
+    }
+    if (adjustmentShouldSped) {
+      subjectStats.sped += 1;
+    }
     const formattedAdjustment = formatStats(stats);
     console.log('[Science Bowl Session Stats] Applied wrong-to-correct adjustment', { subject: normalizedSubject, subjectStats });
-    return res.json({ stats: formattedAdjustment });
+    return res.json({ source: 'session', stats: formattedAdjustment });
   }
 
   const correct = (isCorrect === true) || (isCorrect === 'true') || (isCorrect === 1) || (isCorrect === '1');
@@ -64,10 +86,17 @@ router.post('/', (req, res) => {
   } else {
     subjectStats.wrong += 1;
   }
+  if (isTossup && buzzedEarly) {
+    if (correct) {
+      subjectStats.sped += 1;
+    } else {
+      subjectStats.negs += 1;
+    }
+  }
 
   const formatted = formatStats(stats);
   console.log('[Science Bowl Session Stats] Updated stats', { subject: normalizedSubject, subjectStats, formatted });
-  res.json({ stats: formatted });
+  res.json({ source: 'session', stats: formatted });
 });
 
 export default router;

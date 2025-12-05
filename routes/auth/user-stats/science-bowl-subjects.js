@@ -14,12 +14,14 @@ function ensureSessionStats(session) {
 
   for (const subject of SBCATEGORIES) {
     if (!session.scienceBowlStats[subject]) {
-      session.scienceBowlStats[subject] = { total: 0, correct: 0, wrong: 0 };
+      session.scienceBowlStats[subject] = { total: 0, correct: 0, wrong: 0, sped: 0, negs: 0 };
     } else {
       const stat = session.scienceBowlStats[subject];
       stat.total = stat.total ?? 0;
       stat.correct = stat.correct ?? 0;
       stat.wrong = stat.wrong ?? 0;
+      stat.sped = stat.sped ?? 0;
+      stat.negs = stat.negs ?? 0;
     }
   }
 
@@ -29,8 +31,8 @@ function ensureSessionStats(session) {
 function formatSessionStats(session) {
   const stats = ensureSessionStats(session);
   return SBCATEGORIES.map(subject => {
-    const { total = 0, correct = 0, wrong = 0 } = stats[subject] || {};
-    return { subject, total, correct, wrong };
+    const { total = 0, correct = 0, wrong = 0, sped = 0, negs = 0 } = stats[subject] || {};
+    return { subject, total, correct, wrong, sped, negs };
   });
 }
 

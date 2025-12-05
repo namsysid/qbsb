@@ -3,6 +3,30 @@ import QuestionRoom from '../../quizbowl/QuestionRoom.js';
 import ScienceBowlCategoryManager from '../../quizbowl/ScienceBowlCategoryManager.js';
 import { validateAnswer } from './science-bowl/answer-validator.js';
 
+function normalizeScienceBowlQuestion(question) {
+  if (!question || typeof question !== 'object') { return question; }
+  if (typeof question.isTossup === 'boolean') { return question; }
+
+  if (typeof question.is_tossup === 'boolean') {
+    question.isTossup = question.is_tossup;
+    return question;
+  }
+
+  if (typeof question.is_tossup === 'number') {
+    question.isTossup = question.is_tossup === 1;
+    return question;
+  }
+
+  const typeField = (question.type || question.question_type || question.questionType || '').toString().toLowerCase();
+  if (typeField.includes('tossup')) {
+    question.isTossup = true;
+  } else if (typeField.includes('bonus')) {
+    question.isTossup = false;
+  }
+
+  return question;
+}
+
 export default class ScienceBowlRoom extends QuestionRoom {
   constructor(name = 'science-bowl', subjects = SBCATEGORIES) {
     super(name);
@@ -37,7 +61,7 @@ export default class ScienceBowlRoom extends QuestionRoom {
       tossup: null,
       userId: null,
       powerValue: 0,
-      negValue: -5
+      negValue: -4
     };
 
     // Use the science bowl specific category manager
@@ -105,7 +129,7 @@ export default class ScienceBowlRoom extends QuestionRoom {
     this.emitMessage({ type: 'timer-update', timeRemaining: 0 });
 
     console.log('ScienceBowlRoom: next() called');
-    const question = await this.advanceQuestion();
+    const question = normalizeScienceBowlQuestion(await this.advanceQuestion());
     console.log('ScienceBowlRoom: advanceQuestion returned:', question);
     
     if (question === null) {
@@ -462,9 +486,21 @@ export default class ScienceBowlRoom extends QuestionRoom {
       console.log('Final isCorrect result (free-response):', isCorrect, validationResult);
     }
 
+    const questionText = Array.isArray(this.questionSplit) ? this.questionSplit.join(' ') : '';
+    const totalLength = questionText.length;
+    const remainingLength = Array.isArray(this.questionSplit)
+      ? this.questionSplit.slice(this.wordIndex).join(' ').length
+      : 0;
+    const perQuestionCelerity = totalLength > 0 ? (remainingLength / totalLength) : 0;
+    const endOfQuestion = Array.isArray(this.questionSplit)
+      ? this.wordIndex >= this.questionSplit.length
+      : true;
+
     // Store the result in previous
     this.previous = {
       ...this.previous,
+      celerity: perQuestionCelerity,
+      endOfQuestion,
       isCorrect,
       tossup: this.tossup,
       userId
@@ -486,7 +522,9 @@ export default class ScienceBowlRoom extends QuestionRoom {
       directive: isCorrect ? 'accept' : 'reject',
       isCorrect,
       tossup: this.tossup,
-      userId
+      userId,
+      perQuestionCelerity,
+      endOfQuestion
     });
 
     return true;

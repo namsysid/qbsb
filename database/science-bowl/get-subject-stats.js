@@ -10,16 +10,16 @@ import { SBCATEGORIES } from '../../quizbowl/categories.js';
 export default async function getSubjectStats(userId) {
   try {
     // First, get all Science Bowl question IDs and their subjects
-    const scienceBowlQuestions = await questions.find({}, { projection: { _id: 1, subject: 1 } }).toArray();
+    const scienceBowlQuestions = await questions.find({}, { projection: { _id: 1, subject: 1, is_tossup: 1 } }).toArray();
     const questionIds = scienceBowlQuestions.map(q => q._id);
     const questionIdToSubject = new Map();
     scienceBowlQuestions.forEach(q => {
       // Store both string and original format for lookup
       const idStr = String(q._id);
-      questionIdToSubject.set(idStr, q.subject);
+      questionIdToSubject.set(idStr, { subject: q.subject, isTossup: q.is_tossup === true });
       // Also store the original _id if it's different from the string representation
       if (idStr !== q._id) {
-        questionIdToSubject.set(q._id, q.subject);
+        questionIdToSubject.set(q._id, { subject: q.subject, isTossup: q.is_tossup === true });
       }
     });
 
@@ -29,7 +29,9 @@ export default async function getSubjectStats(userId) {
         subject,
         total: 0,
         correct: 0,
-        wrong: 0
+        wrong: 0,
+        sped: 0,
+        negs: 0
       }));
     }
 
@@ -45,7 +47,8 @@ export default async function getSubjectStats(userId) {
       {
         $project: {
           questionId: '$_id',
-          isCorrect: '$data.isCorrect'
+          isCorrect: '$data.isCorrect',
+          celerity: '$data.celerity'
         }
       }
     ]).toArray();
@@ -53,13 +56,14 @@ export default async function getSubjectStats(userId) {
     // Group by subject
     const statsMap = new Map();
     SBCATEGORIES.forEach(subject => {
-      statsMap.set(subject, { total: 0, correct: 0, wrong: 0 });
+      statsMap.set(subject, { total: 0, correct: 0, wrong: 0, sped: 0, negs: 0 });
     });
 
     userData.forEach(entry => {
       // Try both string and original format for lookup
       const questionIdStr = String(entry.questionId);
-      const subject = questionIdToSubject.get(questionIdStr) || questionIdToSubject.get(entry.questionId);
+      const info = questionIdToSubject.get(questionIdStr) || questionIdToSubject.get(entry.questionId);
+      const subject = info?.subject;
       if (subject && statsMap.has(subject)) {
         const stat = statsMap.get(subject);
         stat.total += 1;
@@ -67,6 +71,15 @@ export default async function getSubjectStats(userId) {
           stat.correct += 1;
         } else {
           stat.wrong += 1;
+        }
+        const isTossup = info?.isTossup === true;
+        const buzzedEarly = isTossup && typeof entry.celerity === 'number' && entry.celerity > 0;
+        if (buzzedEarly) {
+          if (entry.isCorrect) {
+            stat.sped += 1;
+          } else {
+            stat.negs += 1;
+          }
         }
       }
     });
@@ -76,7 +89,9 @@ export default async function getSubjectStats(userId) {
       subject,
       total: stats.total,
       correct: stats.correct,
-      wrong: stats.wrong
+      wrong: stats.wrong,
+      sped: stats.sped,
+      negs: stats.negs
     }));
 
     return allStats;
@@ -87,8 +102,9 @@ export default async function getSubjectStats(userId) {
       subject,
       total: 0,
       correct: 0,
-      wrong: 0
+      wrong: 0,
+      sped: 0,
+      negs: 0
     }));
   }
 }
-
