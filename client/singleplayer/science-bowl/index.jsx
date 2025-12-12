@@ -494,7 +494,7 @@ function setMode ({ mode, setName }) {
   document.getElementById('category-select-button').disabled = mode === 'local packet';
   const aiSettingsBtn2 = document.getElementById('ai-settings'); if (aiSettingsBtn2) aiSettingsBtn2.disabled = mode === 'local packet' || !room.settings.aiMode;
   const aiToggle2 = document.getElementById('toggle-ai-mode'); if (aiToggle2) aiToggle2.disabled = mode === 'local packet';
-  document.getElementById('clear-stats').disabled = mode === 'local packet';
+  const clearStatsBtn = document.getElementById('clear-stats'); if (clearStatsBtn) clearStatsBtn.disabled = mode === 'local packet';
   document.getElementById('set-name').value = setName || '';
   window.localStorage.setItem('singleplayer-science-bowl-mode', JSON.stringify({ mode, setName, version: modeVersion }));
 }
@@ -751,9 +751,12 @@ document.addEventListener('DOMContentLoaded', () => {
     room.message(USER_ID, { type: 'buzz' });
   });
 
-  document.getElementById('clear-stats').addEventListener('click', () => {
-    room.message(USER_ID, { type: 'clear-stats' });
-  });
+  const clearStatsButton = document.getElementById('clear-stats');
+  if (clearStatsButton) {
+    clearStatsButton.addEventListener('click', () => {
+      room.message(USER_ID, { type: 'clear-stats' });
+    });
+  }
 
   // Add start button handler with detailed logging
   const startButton = document.getElementById('start');
