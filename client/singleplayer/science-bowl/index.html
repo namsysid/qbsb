@@ -266,9 +266,16 @@
                     <!-- AI mode toggle removed -->
                     <hr>
                     <!-- Removed: Type to answer, Allow rebuzzes, Show question history, Enable timer -->
-                    <div class="form-check form-switch">
+                    <div class="form-check form-switch mb-2">
                         <input class="form-check-input" id="toggle-speech" type="checkbox" role="switch">
                         <label class="form-check-label" for="toggle-speech">Enable text-to-speech</label>
+                    </div>
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" id="toggle-ms-mode" type="checkbox" role="switch">
+                        <label class="form-check-label" for="toggle-ms-mode">Middle school questions</label>
+                        <div class="form-text">
+                            Off = high school sets (filters out MSNSB). On = only MSNSB middle school questions.
+                        </div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label" for="reading-speed">
@@ -765,8 +772,13 @@
             const QUERY_STORAGE_KEY = 'singleplayer-science-bowl-query';
             const QUERY_VERSION = '2025-05-07';
             const COMPETITIONS = ['SMH', 'NSB', 'BASH'];
+            const MIDDLE_SCHOOL_COMPETITION = 'MSNSB';
+            const MODE_STORAGE_KEY = 'singleplayer-science-bowl-level';
             const CHECKBOX_SELECTOR = '.competition-checkbox';
+            const MS_SWITCH_ID = 'toggle-ms-mode';
+            const COMPETITION_BUTTON_ID = 'competition-select-button';
             let cachedSelection = [];
+            let msMode = false;
             let roomSyncInterval = null;
 
             function safeParse (value) {
@@ -791,6 +803,11 @@
                 return normalizeSelection(saved.competitions);
             }
 
+            function loadSavedMsMode () {
+                const saved = safeParse(window.localStorage.getItem(MODE_STORAGE_KEY));
+                return saved?.mode === 'MS';
+            }
+
             function persistSelection (selection) {
                 try {
                     const baseQuery = { ...(window.room?.query || {}) };
@@ -798,6 +815,14 @@
                     window.localStorage.setItem(QUERY_STORAGE_KEY, JSON.stringify({ ...baseQuery, version: QUERY_VERSION }));
                 } catch (error) {
                     console.warn('[Science Bowl] Failed to persist competition filters', error);
+                }
+            }
+
+            function persistMsMode () {
+                try {
+                    window.localStorage.setItem(MODE_STORAGE_KEY, JSON.stringify({ mode: msMode ? 'MS' : 'HS' }));
+                } catch (error) {
+                    console.warn('[Science Bowl] Failed to persist MS/HS mode', error);
                 }
             }
 
@@ -830,17 +855,62 @@
                 return normalizeSelection(values);
             }
 
+            function getEffectiveSelection () {
+                if (msMode) {
+                    return [MIDDLE_SCHOOL_COMPETITION];
+                }
+                const sanitized = normalizeSelection(cachedSelection);
+                if (sanitized.length === 0) {
+                    return COMPETITIONS.slice();
+                }
+                return sanitized;
+            }
+
+            function updateRoomCompetitions () {
+                const effective = getEffectiveSelection();
+                assignSelectionToRoom(effective);
+                persistSelection(effective);
+            }
+
             function handleSelectionChange () {
                 cachedSelection = getSelectionFromUI();
-                assignSelectionToRoom(cachedSelection);
-                persistSelection(cachedSelection);
+                updateRoomCompetitions();
+            }
+
+            function syncCompetitionControlsDisabled () {
+                const disabled = msMode;
+                const button = document.getElementById(COMPETITION_BUTTON_ID);
+                if (button) {
+                    button.disabled = disabled;
+                }
+                const clearButton = document.getElementById('clear-competition-selection');
+                if (clearButton) {
+                    clearButton.disabled = disabled;
+                }
+                document.querySelectorAll(CHECKBOX_SELECTOR).forEach((input) => {
+                    input.disabled = disabled;
+                });
             }
 
             cachedSelection = loadInitialSelection();
-            assignSelectionToRoom(cachedSelection);
+            msMode = loadSavedMsMode();
+            updateRoomCompetitions();
 
             document.addEventListener('DOMContentLoaded', () => {
                 syncCheckboxes();
+                syncCompetitionControlsDisabled();
+
+                const msSwitch = document.getElementById(MS_SWITCH_ID);
+                if (msSwitch) {
+                    msSwitch.checked = msMode;
+                    msSwitch.addEventListener('change', () => {
+                        msMode = msSwitch.checked;
+                        persistMsMode();
+                        syncCompetitionControlsDisabled();
+                        updateRoomCompetitions();
+                    });
+                }
+
                 document.querySelectorAll(CHECKBOX_SELECTOR).forEach((input) => {
                     input.addEventListener('change', handleSelectionChange);
                 });
@@ -853,9 +923,7 @@
                 });
 
                 document.getElementById('competition-modal')?.addEventListener('show.bs.modal', () => {
-                    const current = normalizeSelection(window.room?.query?.competitions || cachedSelection);
-                    cachedSelection = current.slice();
-                    syncCheckboxes(current);
+                    syncCheckboxes(msMode ? [] : normalizeSelection(window.room?.query?.competitions || cachedSelection));
                 });
             });
         })();
