@@ -34,9 +34,31 @@ export default class ClientScienceBowlRoom extends ScienceBowlRoom {
     };
 
     this.checkAnswer = api.checkAnswer;
-    this.getRandomQuestions = async (args) => {
-      // Only include subjects in the query
-      const query = { subjects: this.query.subjects };
+    this.getRandomQuestions = async (args = {}) => {
+      const subjectFilter = Array.isArray(args.subjects)
+        ? args.subjects
+        : Array.isArray(args.categories)
+          ? args.categories
+          : this.query.subjects;
+      const competitionFilter = Array.isArray(args.competitions)
+        ? args.competitions
+        : this.query.competitions;
+      const yearFilter = Array.isArray(args.years) ? args.years : this.query.years;
+      const isMcq = typeof args.isMcq === 'boolean' ? args.isMcq : this.query.isMcq;
+      const isTossup = typeof args.isTossup === 'boolean' ? args.isTossup : this.query.isTossup;
+      const number = typeof args.number === 'number'
+        ? args.number
+        : (typeof this.query.number === 'number' ? this.query.number : 1);
+
+      const query = {
+        subjects: subjectFilter,
+        competitions: competitionFilter,
+        years: yearFilter,
+        isMcq,
+        isTossup,
+        number
+      };
+
       console.log('ClientScienceBowlRoom: Sending query to API:', query);
       const questions = await api.getRandomScienceBowlQuestion(query);
       console.log('ClientScienceBowlRoom: Received questions from API:', questions);
@@ -44,7 +66,9 @@ export default class ClientScienceBowlRoom extends ScienceBowlRoom {
       // Map is_tossup from database to isTossup for our application
       return questions.map(question => ({
         ...question,
-        isTossup: question.is_tossup === true // Map from database field to our field
+        isTossup: typeof question.isTossup === 'boolean'
+          ? question.isTossup
+          : (question.is_tossup === true || question.is_tossup === 1)
       }));
     };
     this.getRandomStarredQuestion = getRandomStarredQuestion;

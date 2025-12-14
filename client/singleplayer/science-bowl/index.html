@@ -166,6 +166,12 @@
         .dark #topics-needed-list .topic-item + .topic-item {
             border-color: rgba(255,255,255,0.08);
         }
+        #buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            align-items: flex-end;
+        }
         
     </style>
 </head>
@@ -235,10 +241,7 @@
                 <hr class="d-none" id="player-list-group-hr">
                 <label class="form-check-label mb-1" for="set-mode">Choose a mode:</label>
                 <select class="form-select mb-2" id="set-mode">
-                    <option value="select by set name">Select by Set Name</option>
                     <option value="random questions" selected>Random Questions</option>
-                    <option value="starred questions">Starred Questions</option>
-                    <option value="local packet">Upload Local Packet</option>
                 </select>
                 <div class="d-none" id="local-packet-settings">
                     You may need to <a href="/tools/packet-parser/">parse the packet here</a> into .json.
@@ -251,19 +254,25 @@
                     <input class="form-control my-1" id="packet-number" type="text" placeholder="Packet Numbers">
                 </div>
                 <div class="mt-2" id="general-settings">
-                    <div class="text-center mb-2">
-                        <button class="btn btn-info" id="ai-settings" data-bs-target="#ai-settings-modal" data-bs-toggle="modal"
-                            type="button" disabled>AI</button>
-                        <button class="btn btn-danger" id="category-select-button" data-bs-target="#category-modal-root"
+                    <div class="text-center mb-2 d-flex flex-wrap justify-content-center gap-2">
+                        <button class="btn btn-success" id="category-select-button" data-bs-target="#category-modal-root"
                             data-bs-toggle="modal" type="button">Categories</button>
-                        <button class="btn btn-warning" id="clear-stats" type="button">Clear Stats</button>
+                        <button class="btn btn-outline-primary" id="competition-select-button" data-bs-target="#competition-modal"
+                            data-bs-toggle="modal" type="button">Competitions</button>
                     </div>
                     <!-- AI mode toggle removed -->
                     <hr>
                     <!-- Removed: Type to answer, Allow rebuzzes, Show question history, Enable timer -->
-                    <div class="form-check form-switch">
+                    <div class="form-check form-switch mb-2">
                         <input class="form-check-input" id="toggle-speech" type="checkbox" role="switch">
                         <label class="form-check-label" for="toggle-speech">Enable text-to-speech</label>
+                    </div>
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" id="toggle-ms-mode" type="checkbox" role="switch">
+                        <label class="form-check-label" for="toggle-ms-mode">Middle school questions</label>
+                        <div class="form-text">
+                            Off = high school sets (filters out MSNSB). On = only MSNSB middle school questions.
+                        </div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label" for="reading-speed">
@@ -416,23 +425,12 @@
     <div class="container-fluid py-3 px-xxl-5 position-fixed bottom-0 bg-body">
         <div class="row">
             <div class="col-12 col-lg-9" id="buttons">
-                <button class="btn btn-primary" id="start">Start/Next</button>
+                <button class="btn btn-primary" id="start" data-bs-toggle="tooltip" data-bs-placement="top"
+                    title="Shortcut: N">Start/Next</button>
                 <button class="btn btn-primary" id="pause" data-bs-placement="top" data-bs-toggle="tooltip" type="button"
-                    title="Shortcut: p key">Pause</button>
-                <button class="btn btn-danger" id="toggle-settings" data-bs-placement="top" data-bs-toggle="tooltip" type="button"
-                    title="Shortcut: e key" type="button">
-                    <div class="d-flex align-items-center">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="bi bi-gear"
-                            viewBox="0 0 16 16">
-                            <path
-                                d="M8 4.754a3.246 3.246 0 1 0 0 6.492 3.246 3.246 0 0 0 0-6.492M5.754 8a2.246 2.246 0 1 1 4.492 0 2.246 2.246 0 0 1-4.492 0" />
-                            <path
-                                d="M9.796 1.343c-.527-1.79-3.065-1.79-3.592 0l-.094.319a.873.873 0 0 1-1.255.52l-.292-.16c-1.64-.892-3.433.902-2.54 2.541l.159.292a.873.873 0 0 1-.52 1.255l-.319.094c-1.79.527-1.79 3.065 0 3.592l.319.094a.873.873 0 0 1 .52 1.255l-.16.292c-.892 1.64.901 3.434 2.541 2.54l.292-.159a.873.873 0 0 1 1.255.52l.094.319c.527 1.79 3.065 1.79 3.592 0l.094-.319a.873.873 0 0 1 1.255-.52l.292.16c1.64.893 3.434-.902 2.54-2.541l-.159-.292a.873.873 0 0 1 .52-1.255l.319-.094c1.79-.527 1.79-3.065 0-3.592l-.319-.094a.873.873 0 0 1-.52-1.255l.16-.292c.893-1.64-.902-3.433-2.541-2.54l-.292.159a.873.873 0 0 1-1.255-.52zm-2.633.283c.246-.835 1.428-.835 1.674 0l.094.319a1.873 1.873 0 0 0 2.693 1.115l.291-.16c.764-.415 1.6.42 1.184 1.185l-.159.292a1.873 1.873 0 0 0 1.116 2.692l.318.094c.835.246.835 1.428 0 1.674l-.319.094a1.873 1.873 0 0 0-1.115 2.693l.16.291c.415.764-.42 1.6-1.185 1.184l-.291-.159a1.873 1.873 0 0 0-2.693 1.116l-.094.318c-.246.835-1.428.835-1.674 0l-.094-.319a1.873 1.873 0 0 0-2.692-1.115l-.292.16c-.764.415-1.6-.42-1.184-1.185l.159-.291A1.873 1.873 0 0 0 1.945 8.93l-.319-.094c-.835-.246-.835-1.428 0-1.674l.319-.094A1.873 1.873 0 0 0 3.06 4.377l-.16-.292c-.415-.764.42-1.6 1.185-1.184l.292.159a1.873 1.873 0 0 0 2.692-1.115l.094-.319z" />
-                        </svg>
-                    </div>
-                </button>
+                    title="Shortcut: P">Pause</button>
                 <button class="btn btn-primary" id="buzz" data-bs-placement="top" data-bs-toggle="tooltip" type="button"
-                    title="Shortcut: space key" disabled>Buzz</button>
+                    title="Shortcut: Space" disabled>Buzz</button>
             </div>
         </div>
     </div>
@@ -586,6 +584,39 @@
       </div>
     </div>
 
+    <div class="modal fade" id="competition-modal" tabindex="-1" aria-labelledby="competition-modal-label">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="competition-modal-label">Select Competitions</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted small mb-3">
+                        Choose which competitions to include when pulling questions.
+                        Leave everything unchecked to allow questions from every competition.
+                    </p>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input competition-checkbox" type="checkbox" value="SMH" id="competition-smh">
+                        <label class="form-check-label" for="competition-smh">SMH</label>
+                    </div>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input competition-checkbox" type="checkbox" value="NSB" id="competition-nsb">
+                        <label class="form-check-label" for="competition-nsb">NSB</label>
+                    </div>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input competition-checkbox" type="checkbox" value="BASH" id="competition-bash">
+                        <label class="form-check-label" for="competition-bash">BASH</label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" id="clear-competition-selection">Clear</button>
+                    <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Done</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="modal" id="ai-settings-modal">
         <div class="modal-dialog">
             <div class="modal-content">
@@ -733,6 +764,167 @@
     <script type="module" src="/bootstrap/bootstrap.bundle.min.js"></script>
     <script type="module" src="/script.js"></script>
     <script type="module" src="index.min.js"></script>
+    <script>
+        (function setupCompetitionFilters () {
+            const QUERY_STORAGE_KEY = 'singleplayer-science-bowl-query';
+            const QUERY_VERSION = '2025-05-07';
+            const COMPETITIONS = ['SMH', 'NSB', 'BASH'];
+            const MIDDLE_SCHOOL_COMPETITION = 'MSNSB';
+            const MODE_STORAGE_KEY = 'singleplayer-science-bowl-level';
+            const CHECKBOX_SELECTOR = '.competition-checkbox';
+            const MS_SWITCH_ID = 'toggle-ms-mode';
+            const COMPETITION_BUTTON_ID = 'competition-select-button';
+            let cachedSelection = [];
+            let msMode = false;
+            let roomSyncInterval = null;
+
+            function safeParse (value) {
+                if (typeof value !== 'string' || value.length === 0) {
+                    return null;
+                }
+                try {
+                    return JSON.parse(value);
+                } catch (error) {
+                    console.warn('[Science Bowl] Failed to parse saved query state', error);
+                    return null;
+                }
+            }
+
+            function normalizeSelection (selection = []) {
+                return selection.filter((name) => COMPETITIONS.includes(name));
+            }
+
+            function loadInitialSelection () {
+                const saved = safeParse(window.localStorage.getItem(QUERY_STORAGE_KEY));
+                if (!Array.isArray(saved?.competitions)) { return []; }
+                return normalizeSelection(saved.competitions);
+            }
+
+            function loadSavedMsMode () {
+                const saved = safeParse(window.localStorage.getItem(MODE_STORAGE_KEY));
+                return saved?.mode === 'MS';
+            }
+
+            function persistSelection (selection) {
+                try {
+                    const baseQuery = { ...(window.room?.query || {}) };
+                    baseQuery.competitions = selection.slice();
+                    window.localStorage.setItem(QUERY_STORAGE_KEY, JSON.stringify({ ...baseQuery, version: QUERY_VERSION }));
+                } catch (error) {
+                    console.warn('[Science Bowl] Failed to persist competition filters', error);
+                }
+            }
+
+            function persistMsMode () {
+                try {
+                    window.localStorage.setItem(MODE_STORAGE_KEY, JSON.stringify({ mode: msMode ? 'MS' : 'HS' }));
+                } catch (error) {
+                    console.warn('[Science Bowl] Failed to persist MS/HS mode', error);
+                }
+            }
+
+            function assignSelectionToRoom (selection) {
+                if (!window.room || !window.room.query) {
+                    if (roomSyncInterval === null) {
+                        roomSyncInterval = setInterval(() => {
+                            if (window.room && window.room.query) {
+                                assignSelectionToRoom(selection);
+                                clearInterval(roomSyncInterval);
+                                roomSyncInterval = null;
+                            }
+                        }, 100);
+                    }
+                    return;
+                }
+                window.room.query.competitions = selection.slice();
+            }
+
+            function syncCheckboxes (selection = cachedSelection) {
+                document.querySelectorAll(CHECKBOX_SELECTOR).forEach((input) => {
+                    input.checked = selection.includes(input.value);
+                });
+            }
+
+            function getSelectionFromUI () {
+                const values = Array.from(document.querySelectorAll(CHECKBOX_SELECTOR))
+                    .filter((input) => input.checked)
+                    .map((input) => input.value);
+                return normalizeSelection(values);
+            }
+
+            function getEffectiveSelection () {
+                if (msMode) {
+                    return [MIDDLE_SCHOOL_COMPETITION];
+                }
+                const sanitized = normalizeSelection(cachedSelection);
+                if (sanitized.length === 0) {
+                    return COMPETITIONS.slice();
+                }
+                return sanitized;
+            }
+
+            function updateRoomCompetitions () {
+                const effective = getEffectiveSelection();
+                assignSelectionToRoom(effective);
+                persistSelection(effective);
+            }
+
+            function handleSelectionChange () {
+                cachedSelection = getSelectionFromUI();
+                updateRoomCompetitions();
+            }
+
+            function syncCompetitionControlsDisabled () {
+                const disabled = msMode;
+                const button = document.getElementById(COMPETITION_BUTTON_ID);
+                if (button) {
+                    button.disabled = disabled;
+                }
+                const clearButton = document.getElementById('clear-competition-selection');
+                if (clearButton) {
+                    clearButton.disabled = disabled;
+                }
+                document.querySelectorAll(CHECKBOX_SELECTOR).forEach((input) => {
+                    input.disabled = disabled;
+                });
+            }
+
+            cachedSelection = loadInitialSelection();
+            msMode = loadSavedMsMode();
+            updateRoomCompetitions();
+
+            document.addEventListener('DOMContentLoaded', () => {
+                syncCheckboxes();
+                syncCompetitionControlsDisabled();
+
+                const msSwitch = document.getElementById(MS_SWITCH_ID);
+                if (msSwitch) {
+                    msSwitch.checked = msMode;
+                    msSwitch.addEventListener('change', () => {
+                        msMode = msSwitch.checked;
+                        persistMsMode();
+                        syncCompetitionControlsDisabled();
+                        updateRoomCompetitions();
+                    });
+                }
+
+                document.querySelectorAll(CHECKBOX_SELECTOR).forEach((input) => {
+                    input.addEventListener('change', handleSelectionChange);
+                });
+
+                document.getElementById('clear-competition-selection')?.addEventListener('click', () => {
+                    document.querySelectorAll(CHECKBOX_SELECTOR).forEach((input) => {
+                        input.checked = false;
+                    });
+                    handleSelectionChange();
+                });
+
+                document.getElementById('competition-modal')?.addEventListener('show.bs.modal', () => {
+                    syncCheckboxes(msMode ? [] : normalizeSelection(window.room?.query?.competitions || cachedSelection));
+                });
+            });
+        })();
+    </script>
     <script>
         // Initialize updateStatDisplay if not already defined
         if (typeof window.updateStatDisplay !== 'function') {
@@ -1782,13 +1974,17 @@
                 
                 // Clear and hide answer input
                 answerInput.value = '';
-                answerInputGroup.classList.add('d-none');
+                if (answerInputGroup) {
+                    answerInputGroup.classList.add('d-none');
+                }
                 
                 // Hide toggle correct button and clear answer displays
-                toggleCorrectButton.classList.add('d-none');
-                if (answerDisplay) answerDisplay.innerHTML = '';
-                if (userAnswer) userAnswer.innerHTML = '';
-                if (answer) answer.innerHTML = '';
+                if (toggleCorrectButton) {
+                    toggleCorrectButton.classList.add('d-none');
+                }
+                if (answerDisplay) { answerDisplay.innerHTML = ''; }
+                if (userAnswer) { userAnswer.innerHTML = ''; }
+                if (answer) { answer.innerHTML = ''; }
                 
                 // Ensure categories are synced
                 window.room.query.subjects = window.room.categoryManager.categories;
