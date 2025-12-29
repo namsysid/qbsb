@@ -166,11 +166,40 @@
         .dark #topics-needed-list .topic-item + .topic-item {
             border-color: rgba(255,255,255,0.08);
         }
+        .result-correct {
+            color: #198754;
+        }
+        .result-wrong {
+            color: #dc3545;
+        }
+        .answer-panel {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 0.5rem;
+            padding: 0.6rem 0.9rem;
+            display: inline-block;
+        }
+        .dark .answer-panel {
+            background-color: #1f2937;
+            border-color: #4a5568;
+        }
         #buttons {
             display: flex;
             flex-wrap: wrap;
             gap: 1rem;
-            align-items: flex-end;
+            align-items: center;
+        }
+        .score-panel {
+            background-color: #f1f3f5;
+            border: 1px solid #dee2e6;
+            border-radius: 0.5rem;
+            padding: 0.35rem 0.75rem;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+        }
+        .dark .score-panel {
+            background-color: #1f2937;
+            border-color: #4a5568;
         }
         
     </style>
@@ -290,9 +319,19 @@
             <div class="col-12 col-lg-9" id="content">
                 <form id="answer-form">
                     <!-- User enters answer here -->
-                    <div class="d-flex justify-content-between mb-3">
-                        <span id="statline">SCORE: 0</span>
-                        <span class="ps-5 me-lg-2" id="question-metadata">
+                    <div class="d-flex flex-wrap align-items-center gap-2 mb-3" id="question-topbar">
+                        <div class="score-panel">
+                            <span id="statline">SCORE: 0</span>
+                        </div>
+                        <div class="ms-auto d-flex flex-wrap gap-2" id="buttons">
+                            <button class="btn btn-primary" id="start" data-bs-toggle="tooltip" data-bs-placement="top"
+                                title="Shortcut: N" type="button">Start/Next</button>
+                            <button class="btn btn-primary" id="pause" data-bs-placement="top" data-bs-toggle="tooltip" type="button"
+                                title="Shortcut: P">Pause</button>
+                            <button class="btn btn-primary" id="buzz" data-bs-placement="top" data-bs-toggle="tooltip" type="button"
+                                title="Shortcut: Space" disabled>Buzz</button>
+                        </div>
+                        <span class="ps-5 me-lg-2 d-none" id="question-metadata">
                             <b id="question-info">
                                 <span id="set-name-info"></span>
                                 Packet <span id="packet-number-info">-</span>
@@ -300,7 +339,6 @@
                                 of <span id="packet-length-info">-</span>
                             </b>
                         </span>
-                        <div class="d-flex gap-2 align-items-start flex-wrap"></div>
                     </div>
                     <div id="question" class="mb-3"></div>
                     <div id="answer-display" class="mb-3"></div>
@@ -416,19 +454,6 @@
                     </div>
                 </form>
                 <ul class="room-history list-unstyled" id="room-history"></ul>
-            </div>
-        </div>
-    </div>
-
-    <div class="container-fluid py-3 px-xxl-5 position-fixed bottom-0 bg-body">
-        <div class="row">
-            <div class="col-12 col-lg-9" id="buttons">
-                <button class="btn btn-primary" id="start" data-bs-toggle="tooltip" data-bs-placement="top"
-                    title="Shortcut: N">Start/Next</button>
-                <button class="btn btn-primary" id="pause" data-bs-placement="top" data-bs-toggle="tooltip" type="button"
-                    title="Shortcut: P">Pause</button>
-                <button class="btn btn-primary" id="buzz" data-bs-placement="top" data-bs-toggle="tooltip" type="button"
-                    title="Shortcut: Space" disabled>Buzz</button>
             </div>
         </div>
     </div>
@@ -2717,6 +2742,11 @@
             } else {
                 console.log('Question or answer element not found:', { questionElement, answerElement });
             }
+
+            const verdict = typeof message.isCorrect === 'boolean' ? message.isCorrect : window.room?.previous?.isCorrect;
+            if (typeof window.sbApplyAnswerResultStyles === 'function') {
+                window.sbApplyAnswerResultStyles(verdict);
+            }
             
             if (pauseButton) pauseButton.disabled = true;
             if (buzzButton) {
@@ -3058,6 +3088,60 @@
             }
 
             attachEmitterHook();
+        })();
+    </script>
+    <script>
+        window.sbApplyAnswerResultStyles = function sbApplyAnswerResultStyles (isCorrect) {
+            const statline = document.getElementById('statline');
+            const userAnswer = document.getElementById('user-answer');
+            [statline, userAnswer].forEach((el) => {
+                if (!el) { return; }
+                el.classList.remove('result-correct', 'result-wrong');
+                if (isCorrect === true) {
+                    el.classList.add('result-correct');
+                } else if (isCorrect === false) {
+                    el.classList.add('result-wrong');
+                }
+            });
+        };
+
+        window.sbSyncAnswerPanels = function sbSyncAnswerPanels () {
+            const answerDisplay = document.getElementById('answer-display');
+            const userAnswer = document.getElementById('user-answer');
+            [answerDisplay, userAnswer].forEach((el) => {
+                if (!el) { return; }
+                const hasText = (el.textContent || '').trim().length > 0;
+                el.classList.toggle('answer-panel', hasText);
+            });
+        };
+
+        (function attachAnswerResultObserver () {
+            const userAnswer = document.getElementById('user-answer');
+            if (!userAnswer) { return; }
+            const applyFromRoom = () => {
+                const hasAnswer = (userAnswer.textContent || '').trim().length > 0;
+                if (!hasAnswer) {
+                    window.sbApplyAnswerResultStyles(null);
+                    window.sbSyncAnswerPanels?.();
+                    return;
+                }
+                const verdict = window.room?.previous?.isCorrect;
+                if (typeof verdict === 'boolean') {
+                    window.sbApplyAnswerResultStyles(verdict);
+                }
+                window.sbSyncAnswerPanels?.();
+            };
+            const observer = new MutationObserver(applyFromRoom);
+            observer.observe(userAnswer, { childList: true, subtree: true, characterData: true });
+            applyFromRoom();
+        })();
+
+        (function attachAnswerPanelObserver () {
+            const answerDisplay = document.getElementById('answer-display');
+            if (!answerDisplay) { return; }
+            const observer = new MutationObserver(() => window.sbSyncAnswerPanels?.());
+            observer.observe(answerDisplay, { childList: true, subtree: true, characterData: true });
+            window.sbSyncAnswerPanels?.();
         })();
     </script>
     
