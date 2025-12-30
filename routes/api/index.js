@@ -21,6 +21,7 @@ import scienceBowlQuery from './science-bowl/query.js';
 import scienceBowlRandomQuestion from './science-bowl/random-question.js';
 import scienceBowlSessionStats from './science-bowl/session-stats.js';
 import aiHelpRouter from './ai-help.js';
+import aiBuzzRouter from './ai-buzz.js';
 
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
@@ -76,5 +77,6 @@ router.use('/science-bowl/query', scienceBowlQuery);
 router.use('/science-bowl/random-question', scienceBowlRandomQuestion);
 router.use('/science-bowl/session-stats', scienceBowlSessionStats);
 router.use('/ai-help', aiHelpRouter);
+router.use('/ai-buzz', aiBuzzRouter);
 
 export default router;

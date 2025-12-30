@@ -1,5 +1,6 @@
 import buzzOverDistribution from './buzz-over-distribution.js';
 import loadAiBots from './load-ai-bots.js';
+import fetchBuzzpoints from './fetch-buzzpoints.js';
 
 const averageHighSchool = ({ packetLength, oldTossup, tossup }) => {
   const { correctBuzz, celerity } = buzzOverDistribution({
@@ -56,6 +57,26 @@ const buzzRandomly = ({ packetLength, oldTossup, tossup }) => {
   return { buzzpoint, correctBuzz };
 };
 
+const sanitizeQuestionLength = (tossup) => {
+  const raw = typeof tossup?.question_sanitized === 'string'
+    ? tossup.question_sanitized
+    : (typeof tossup?.question === 'string' ? tossup.question : '');
+  return raw.split(' ').filter(Boolean).length || 1;
+};
+
+const buildBuzzpointBot = (level, fallback = averageHighSchool) => async ({ packetLength, oldTossup, tossup }) => {
+  const questionId = tossup?._id;
+  const prediction = await fetchBuzzpoints({ questionId, level });
+  if (!prediction) {
+    return fallback({ packetLength, oldTossup, tossup });
+  }
+
+  const questionLength = sanitizeQuestionLength(tossup);
+  const buzzpoint = Math.min(Math.max(1, prediction.wordIndex), questionLength);
+  const correctBuzz = Math.random() < prediction.probCorrect;
+  return { buzzpoint, correctBuzz };
+};
+
 /**
  * Should be in the format of:
  * `[name: string]: [calculateBuzzpoint: function, description: string]`
@@ -66,7 +87,10 @@ const aiBots = {
   'average-college': [averageCollege, 'Average college player on qbreader'],
   'average-open': [averageOpen, 'Average open player on qbreader'],
   'right-after-power': [rightAfterPower, 'Buzz right after the power mark'],
-  'buzz-randomly': [buzzRandomly, 'Buzz at a random point in the question (50% chance of being correct)']
+  'buzz-randomly': [buzzRandomly, 'Buzz at a random point in the question (50% chance of being correct)'],
+  'ai-buzz-beginner': [buildBuzzpointBot('beginner'), 'Uses AI-precomputed buzzpoints (beginner)'],
+  'ai-buzz-intermediate': [buildBuzzpointBot('intermediate'), 'Uses AI-precomputed buzzpoints (intermediate)'],
+  'ai-buzz-advanced': [buildBuzzpointBot('advanced'), 'Uses AI-precomputed buzzpoints (advanced)']
 };
 
 loadAiBots(aiBots);

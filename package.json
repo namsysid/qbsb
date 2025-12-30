@@ -13,7 +13,9 @@
         "test:backend": "mocha test/database.test.js",
         "test:all": "npm run test:frontend && npm run test:backend",
         "watch-jsx": "babel client --extensions .jsx --out-file-extension .min.js --out-dir client --watch",
-        "dev": "npm run build && npm run start"
+        "dev": "npm run build && npm run start",
+        "ai:buzz-backfill": "node scripts/ai-buzz/backfill-buzzpoints.js",
+        "ai:buzz-export": "node scripts/ai-buzz/export-buzzpoints-to-file.js"
     },
     "dependencies": {
         "bootstrap": "5.2.3",
