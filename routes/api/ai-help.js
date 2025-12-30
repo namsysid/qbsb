@@ -3,6 +3,68 @@ import rateLimit from 'express-rate-limit';
 
 const router = Router();
 
+function normalizeAnswerText(text = '') {
+  return String(text || '')
+    .toLowerCase()
+    .replace(/\(.*?\)/g, ' ')
+    .replace(/[^a-z0-9\s]/gi, ' ')
+    .replace(/\b(a|an|the)\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function levenshteinDistance(a = '', b = '') {
+  const aLen = a.length;
+  const bLen = b.length;
+  if (aLen === 0) return bLen;
+  if (bLen === 0) return aLen;
+  const dp = Array.from({ length: aLen + 1 }, () => new Array(bLen + 1).fill(0));
+  for (let i = 0; i <= aLen; i++) dp[i][0] = i;
+  for (let j = 0; j <= bLen; j++) dp[0][j] = j;
+  for (let i = 1; i <= aLen; i++) {
+    for (let j = 1; j <= bLen; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      dp[i][j] = Math.min(
+        dp[i - 1][j] + 1,
+        dp[i][j - 1] + 1,
+        dp[i - 1][j - 1] + cost
+      );
+    }
+  }
+  return dp[aLen][bLen];
+}
+
+function wordOverlapScore(a = '', b = '') {
+  const aWords = new Set(a.split(' ').filter(Boolean));
+  const bWords = new Set(b.split(' ').filter(Boolean));
+  if (!aWords.size || !bWords.size) return 0;
+  const common = [...aWords].filter((w) => bWords.has(w));
+  return common.length / Math.max(aWords.size, bWords.size);
+}
+
+function getEquivalenceHeuristics(canonical = '', user = '') {
+  const normalizedCanonical = normalizeAnswerText(canonical);
+  const normalizedUser = normalizeAnswerText(user);
+  const distance = levenshteinDistance(normalizedCanonical, normalizedUser);
+  const maxLen = Math.max(normalizedCanonical.length, normalizedUser.length, 1);
+  const similarity = 1 - distance / maxLen;
+  const overlap = wordOverlapScore(normalizedCanonical, normalizedUser);
+  const substringMatch = normalizedCanonical.length > 3 && (
+    normalizedUser.includes(normalizedCanonical) || normalizedCanonical.includes(normalizedUser)
+  );
+  const letterMatch = normalizedCanonical.length === 1 && normalizedUser.length === 1 && normalizedCanonical === normalizedUser;
+  const likelyEquivalent = letterMatch || substringMatch || similarity >= 0.9 || overlap >= 0.8;
+
+  return {
+    normalizedCanonical,
+    normalizedUser,
+    distance,
+    similarity,
+    overlap,
+    likelyEquivalent
+  };
+}
+
 // Rate limiting for AI help requests (more restrictive since they cost money)
 const aiHelpRateLimit = rateLimit({
   windowMs: 60 * 1000, // 1 minute
@@ -216,6 +278,12 @@ router.post('/equivalence', async (req, res) => {
       return res.status(400).json({ error: 'correctAnswer and userAnswer are required' });
     }
 
+    const heuristics = getEquivalenceHeuristics(correctAnswer, userAnswer);
+    const similarityScore = Number.isFinite(heuristics.similarity) ? heuristics.similarity.toFixed(3) : 'n/a';
+    const overlapScore = Number.isFinite(heuristics.overlap) ? heuristics.overlap.toFixed(3) : 'n/a';
+    const altMatches = Array.from(String(correctAnswer).matchAll(/\(ACCEPT:\s*([^)]+)\)/gi));
+    const alternateAnswers = altMatches.map((m) => m[1]?.trim()).filter(Boolean);
+
     const openaiApiKey = process.env.OPENAI_API_KEY;
     if (!openaiApiKey) {
       return res.status(500).json({ error: 'OpenAI API key not configured' });
@@ -227,16 +295,25 @@ Question (optional context): ${question || 'N/A'}
 Category: ${category || 'Science'}
 Canonical Answer: ${correctAnswer}
 Student Answer: ${userAnswer}
+Normalized canonical answer: ${heuristics.normalizedCanonical || 'n/a'}
+Normalized student answer: ${heuristics.normalizedUser || 'n/a'}
+Heuristic similarity (1.0 = exact): ${similarityScore}
+Heuristic word overlap: ${overlapScore}
+Heuristic lean: ${heuristics.likelyEquivalent ? 'leans equivalent (spelling/phrasing difference)' : 'inconclusive'}
+Alternates from the answer line (if any): ${alternateAnswers.join('; ') || 'none'}
 ${userJustification ? `Student Justification (optional): ${userJustification}` : ''}
 
 Decide if the student answer is essentially equivalent to the canonical answer.
 Adjudication rules:
-- Accept common synonyms, alternate phrasings, word order, plural/singular, diacritics, and minor spelling errors.
+- Accept common synonyms, alternate phrasings, word order, plural/singular, diacritics, and minor spelling errors or transposed letters.
 - Accept equivalent chemistry names (IUPAC/common), biology taxonomic variants, physics/astro naming variants, and well-known aliases.
 - For numeric answers, allow rounding and equivalent forms; units must be compatible if required by the canonical answer.
+- If the student's answer is clearly the same concept but phrased differently than the answer line, accept it. Use the question context to resolve ambiguity.
 - If canonical answer is a specific term and the student answer is more general/vague, do NOT accept unless it clearly and unambiguously means the same thing.
 - If the student gives a different concept or an incorrect qualifier, mark not equivalent.
 - If the student gives an equivalent ranking for ranking questions, except with the actual text instead of the numbers, mark it as correct.
+- For multiple-choice letters, accept the letter regardless of case if it points to the correct option; also accept the option text if it is essentially equivalent.
+- If heuristics lean equivalent and you see only minor spelling/formatting issues, mark equivalent unless you detect a real conceptual mismatch.
 
 Return strict JSON only with this exact shape and booleans, no extra commentary. Keep justification very short (<= 25 words):
 {

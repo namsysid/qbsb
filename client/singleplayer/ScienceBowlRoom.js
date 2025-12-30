@@ -479,13 +479,29 @@ export default class ScienceBowlRoom extends QuestionRoom {
       if (answerMatch) {
         const [, letter, fullAnswer] = answerMatch;
         console.log('Extracted answer parts:', { letter, fullAnswer });
+        const userAnswerTrimmed = (givenAnswer || '').trim();
+
+        // Accept single-letter responses regardless of case
+        const letterOnly = userAnswerTrimmed.match(/^[a-d]$/i);
+        if (letterOnly && letterOnly[0].toUpperCase() === letter.toUpperCase()) {
+          isCorrect = true;
+        }
         
         // Create a combined answer string with both letter and full answer
         const combinedAnswer = `${letter} (ACCEPT: ${fullAnswer})`;
+        const normalizedGiven = userAnswerTrimmed.replace(/^[a-d]\)\s*/i, '').trim();
         
         // Use the validateAnswer function to check the answer
-        const validationResult = validateAnswer(givenAnswer, combinedAnswer, this.settings.strictness);
-        isCorrect = validationResult.isCorrect;
+        if (!isCorrect) {
+          const validationResult = validateAnswer(userAnswerTrimmed, combinedAnswer, this.settings.strictness);
+          isCorrect = validationResult.isCorrect;
+        }
+
+        // Fallback: compare the typed text directly against the option text
+        if (!isCorrect && normalizedGiven) {
+          const validationResult = validateAnswer(normalizedGiven, fullAnswer, this.settings.strictness);
+          isCorrect = validationResult.isCorrect;
+        }
         console.log('Final isCorrect result (MCQ):', isCorrect);
       }
     } else if (this.tossup?.answer) {
