@@ -21,6 +21,7 @@ router.get('/bonuses', (_req, res) => res.redirect('/singleplayer/bonuses'));
 router.get('/db', (_req, res) => res.redirect('/database'));
 router.get('/tossups', (_req, res) => res.redirect('/singleplayer/tossups'));
 router.get('/user', (_req, res) => res.redirect('/user/login'));
+router.get('/singleplayer/tossups', (_req, res) => res.redirect('/singleplayer/science-bowl/'));
 
 /**
  * Routes:
