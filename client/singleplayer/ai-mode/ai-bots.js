@@ -193,7 +193,7 @@ const buildBuzzpointBot = (level, fallback = averageHighSchool, options = {}) =>
 const intermediateBuzzpointBot = async ({ packetLength, oldTossup, tossup }) => {
   const questionId = tossup?._id ?? tossup?.questionId ?? tossup?.id;
   const questionLength = sanitizeQuestionLength(tossup);
-  const intermediateDelayWords = 3;
+  const intermediateDelayWords = 6;
   if (!questionId) {
     return averageHighSchool({ packetLength, oldTossup, tossup });
   }

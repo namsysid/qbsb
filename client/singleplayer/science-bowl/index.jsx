@@ -113,9 +113,9 @@ aiBot.active = false;
 let lastAiScoredTossupId = null;
 const AI_OPPONENTS = {
   none: { label: 'No opponent', bot: null, username: 'AI' },
-  beginner: { label: 'Beginner AI', bot: aiBots['ai-buzz-beginner']?.[0], username: 'AI (Beginner)' },
-  intermediate: { label: 'Intermediate AI', bot: aiBots['ai-buzz-intermediate']?.[0], username: 'AI (Intermediate)' },
-  advanced: { label: 'Advanced AI', bot: aiBots['ai-buzz-advanced']?.[0], username: 'AI (Advanced)' }
+  beginner: { label: 'Beginner AI', bot: aiBots['ai-buzz-beginner']?.[0], username: 'AI (Beginner)', wrongAnswerProfile: 'beginner' },
+  intermediate: { label: 'Intermediate AI', bot: aiBots['ai-buzz-intermediate']?.[0], username: 'AI (Intermediate)', wrongAnswerProfile: 'intermediate' },
+  advanced: { label: 'Advanced AI', bot: aiBots['ai-buzz-advanced']?.[0], username: 'AI (Advanced)', wrongAnswerProfile: 'advanced' }
 };
 
 const QUESTION_TYPE_FILTER_LABELS = {
@@ -160,6 +160,7 @@ function applyAiOpponentChoice (choice, { persist = true } = {}) {
   if (config.bot) {
     aiBot.setAIBot(config.bot);
   }
+  aiBot.setWrongAnswerProfile(config.wrongAnswerProfile || 'beginner');
   aiBot.player.username = config.username || 'AI';
   room.message(USER_ID, { type: 'toggle-ai-mode', aiMode: selected !== 'none' });
   const select = document.getElementById('ai-opponent-select');

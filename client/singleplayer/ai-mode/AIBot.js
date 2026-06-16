@@ -16,6 +16,7 @@ export default class AIBot {
     this.buzzpoint = Number.POSITIVE_INFINITY;
     this.correctBuzz = false;
     this.hasBuzzed = false;
+    this.wrongAnswerProfile = 'beginner';
     console.debug('[AI-BUZZ][bot] prepareBuzzpoint', { id: this.tossup?._id, active: this.active });
   }
 
@@ -47,10 +48,14 @@ export default class AIBot {
 
   sendBuzz ({ correct }) {
     if (!this.active) { return; }
+    if (this.tossup?.isTossup !== true) {
+      console.debug('[AI-BUZZ][bot] skip buzz for non-tossup question', { isTossup: this.tossup?.isTossup, questionId: this.tossup?._id });
+      return;
+    }
     // need to wait 50ms before each action
     // otherwise the server will not process things correctly
     this.hasBuzzed = true;
-    const answer = correct ? this.getAiAnswer() : '';
+    const answer = correct ? this.getAiAnswer() : this.getAiWrongAnswer();
     console.debug('[AI-BUZZ][bot] sendBuzz', { correct, buzzpoint: this.buzzpoint, wordIndex: this.wordIndex, answer });
     setTimeout(() => {
       this.socket.sendToServer({ type: 'buzz' });
@@ -66,6 +71,87 @@ export default class AIBot {
     const match = raw.match(/^([A-Z])\)\s*/);
     if (match) return match[1];
     return raw;
+  }
+
+  getAnswerlineRaw () {
+    const raw = typeof this.tossup?.answer === 'string'
+      ? this.tossup.answer
+      : (typeof this.tossup?.answer_sanitized === 'string' ? this.tossup.answer_sanitized : '');
+    return raw || '';
+  }
+
+  getQuestionTextRaw () {
+    if (typeof this.tossup?.question_sanitized === 'string' && this.tossup.question_sanitized.trim()) {
+      return this.tossup.question_sanitized;
+    }
+    if (typeof this.tossup?.question === 'string' && this.tossup.question.trim()) {
+      return this.tossup.question;
+    }
+    if (typeof this.tossup?.question_text === 'string' && this.tossup.question_text.trim()) {
+      return this.tossup.question_text;
+    }
+    return '';
+  }
+
+  getAiWrongAnswer () {
+    if (this.tossup?.is_mcq === true) {
+      return this.getAiWrongMcqAnswer();
+    }
+    return this.getAiWrongShortAnswer();
+  }
+
+  getAiWrongMcqAnswer () {
+    const raw = this.getAnswerlineRaw();
+    const correctMatch = raw.match(/^([A-Z])\)\s*/i);
+    const correctLetter = correctMatch ? correctMatch[1].toUpperCase() : null;
+    const optionCount = Array.isArray(this.tossup?.options) && this.tossup.options.length > 0
+      ? this.tossup.options.length
+      : 4;
+    const letters = Array.from({ length: Math.max(2, optionCount) }, (_, i) => String.fromCharCode(65 + i));
+    const wrongLetters = letters.filter((letter) => letter !== correctLetter);
+    if (wrongLetters.length === 0) { return ''; }
+    const index = Math.floor(Math.random() * wrongLetters.length);
+    return wrongLetters[index];
+  }
+
+  getAiWrongShortAnswer () {
+    if (this.wrongAnswerProfile === 'beginner') {
+      return '';
+    }
+
+    if (this.wrongAnswerProfile === 'intermediate') {
+      const questionText = this.getQuestionTextRaw();
+      const numbersInQuestion = questionText.match(/-?\d+(?:\.\d+)?/g);
+      if (Array.isArray(numbersInQuestion) && numbersInQuestion.length > 0) {
+        const index = Math.floor(Math.random() * numbersInQuestion.length);
+        return numbersInQuestion[index];
+      }
+      return '';
+    }
+
+    if (this.wrongAnswerProfile === 'advanced') {
+      const rawAnswer = this.getAnswerlineRaw();
+      const numericMatch = rawAnswer.match(/-?\d+(?:\.\d+)?/);
+      if (!numericMatch) { return ''; }
+      const value = Number.parseFloat(numericMatch[0]);
+      if (!Number.isFinite(value)) { return ''; }
+
+      const operations = [
+        (n) => n + 1,
+        (n) => n - 1,
+        (n) => n * 2,
+        (n) => (n === 0 ? 1 : n / 2)
+      ];
+      const opIndex = Math.floor(Math.random() * operations.length);
+      const transformed = operations[opIndex](value);
+      if (!Number.isFinite(transformed)) { return ''; }
+      const rounded = Number.isInteger(value)
+        ? Math.round(transformed)
+        : Number.parseFloat(transformed.toFixed(3));
+      return String(rounded);
+    }
+
+    return '';
   }
 
   /**
@@ -120,6 +206,14 @@ export default class AIBot {
    */
   setAIBot (calculateBuzzpointFunction) {
     this.calculateBuzzpoint = calculateBuzzpointFunction;
+  }
+
+  setWrongAnswerProfile (profile) {
+    if (profile === 'beginner' || profile === 'intermediate' || profile === 'advanced') {
+      this.wrongAnswerProfile = profile;
+      return;
+    }
+    this.wrongAnswerProfile = 'beginner';
   }
 
   updateQuestion ({ word }) {

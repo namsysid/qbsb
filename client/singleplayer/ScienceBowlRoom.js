@@ -452,6 +452,11 @@ export default class ScienceBowlRoom extends QuestionRoom {
 
   buzz(userId) {
     console.log('ScienceBowlRoom: buzz() called');
+    const isAiUser = typeof userId === 'string' && userId.startsWith('ai');
+    if (isAiUser && this.tossup?.isTossup !== true) {
+      console.log('ScienceBowlRoom: Ignoring AI buzz on non-tossup question', { userId, isTossup: this.tossup?.isTossup });
+      return;
+    }
     if (this.aiLockout && !(typeof userId === 'string' && userId.startsWith('ai'))) {
       console.log('ScienceBowlRoom: AI lockout active; ignoring user buzz');
       return;
