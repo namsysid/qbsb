@@ -24,17 +24,17 @@ form.addEventListener('submit', (event) => {
     })
   }).then(async function (response) {
     if (response.status === 200) {
-      const { expires } = await response.json();
-      account.setUsername(username, expires);
+      const { expires, username: accountUsername } = await response.json();
+      account.setUsername(accountUsername || username, expires);
       if (window.location.search.length > 1) {
         window.location.href = decodeURIComponent(window.location.search.slice(1));
       } else {
-        window.location.href = '/user/my-profile';
+        window.location.href = '/singleplayer/science-bowl/';
       }
     } else {
       document.getElementById('submission').textContent = 'Login';
       document.getElementById('password').value = '';
-      window.alert('Invalid username or password.');
+      window.alert('Invalid Steamcoach username or password.');
     }
   });
 }, false);

@@ -3162,7 +3162,7 @@
             }
 
             async function fetchSubjectStats () {
-                const authResponse = await fetch('/auth/user-stats/science-bowl-subjects');
+                const authResponse = await fetch('/auth/user-stats/science-bowl-subjects', { cache: 'no-store' });
                 if (authResponse.ok) {
                     const data = await authResponse.json();
                     console.log('[SB Stats] Received account stats', data);
@@ -3170,7 +3170,7 @@
                 }
 
                 if (authResponse.status === 401) {
-                    const sessionResponse = await fetch('/api/science-bowl/session-stats');
+                    const sessionResponse = await fetch('/api/science-bowl/session-stats', { cache: 'no-store' });
                     if (sessionResponse.ok) {
                         const data = await sessionResponse.json();
                         console.log('[SB Stats] Using session stats', data);
@@ -3192,7 +3192,8 @@
                     const statsSource = source || 'session';
                     let normalizedStats = Array.isArray(stats) ? stats : [];
 
-                    if (statsSource === 'account' && window.sbSubjectStatAdjustments && Object.keys(window.sbSubjectStatAdjustments).length > 0) {
+                    const hasSubjectAdjustments = statsSource === 'account' && window.sbSubjectStatAdjustments && Object.keys(window.sbSubjectStatAdjustments).length > 0;
+                    if (hasSubjectAdjustments) {
                         normalizedStats = applySubjectAdjustments(normalizedStats, window.sbSubjectStatAdjustments);
                     }
 
@@ -3205,7 +3206,10 @@
                         let totalSped = 0;
                         let totalNegs = 0;
 
-                        const rows = normalizedStats.map((stat) => {
+                        const totalStat = normalizedStats.find(stat => String(stat.subject).toUpperCase() === 'TOTAL');
+                        const subjectStats = normalizedStats.filter(stat => String(stat.subject).toUpperCase() !== 'TOTAL');
+
+                        const rows = subjectStats.map((stat) => {
                             totalQuestions += stat.total;
                             totalCorrect += stat.correct;
                             totalWrong += stat.wrong;
@@ -3226,6 +3230,14 @@
                                 </tr>
                             `;
                         });
+
+                        if (totalStat && !hasSubjectAdjustments) {
+                            totalQuestions = totalStat.total ?? 0;
+                            totalCorrect = totalStat.correct ?? 0;
+                            totalWrong = totalStat.wrong ?? 0;
+                            totalSped = totalStat.sped ?? 0;
+                            totalNegs = totalStat.negs ?? 0;
+                        }
 
                         const totalAccuracy = totalQuestions > 0 ? ((totalCorrect / totalQuestions) * 100).toFixed(1) : '0.0';
                         rows.push(`

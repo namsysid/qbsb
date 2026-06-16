@@ -18,7 +18,7 @@ for (const tooltipTriggerEl of tooltipTriggerList) {
 account.getUsername().then(username => {
   if (username) {
     document.getElementById('login-link').textContent = username;
-    document.getElementById('login-link').href = '/user/my-profile';
+    document.getElementById('login-link').href = '/singleplayer/science-bowl/';
   }
 });
 

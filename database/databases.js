@@ -30,3 +30,4 @@ export const qbreader = mongoClient.db('qbreader');
 export const accountInfo = mongoClient.db('account-info');
 export const geoword = mongoClient.db('geoword');
 export const scienceBowl = mongoClient.db('science_bowl');
+export const steamcoach = mongoClient.db('steamcoach');

@@ -1,5 +1,12 @@
 import express from 'express';
+import {
+  formatScienceBowlStats,
+  getScienceBowlStatsForUser,
+  incrementScienceBowlStatsForUser,
+  replaceScienceBowlStatsForUser
+} from '../../../database/science-bowl/stats.js';
 import { SBCATEGORIES } from '../../../quizbowl/categories.js';
+import { checkSteamcoachToken } from '../../../server/steamcoach/authentication.js';
 
 const router = express.Router();
 
@@ -25,10 +32,15 @@ function ensureSessionStats(session) {
 }
 
 function formatStats(sessionStats) {
-  return SBCATEGORIES.map((subject) => {
-    const { total = 0, correct = 0, wrong = 0, sped = 0, negs = 0 } = sessionStats[subject] || {};
-    return { subject, total, correct, wrong, sped, negs };
-  });
+  return formatScienceBowlStats(sessionStats);
+}
+
+function getSteamcoachSession(req) {
+  const { steamcoachUserId, steamcoachToken, username } = req.session ?? {};
+  if (checkSteamcoachToken(steamcoachUserId, steamcoachToken)) {
+    return { steamcoachUserId, username };
+  }
+  return null;
 }
 
 function parseBoolean(value) {
@@ -41,12 +53,20 @@ function parseBoolean(value) {
   return false;
 }
 
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const steamcoachSession = getSteamcoachSession(req);
+  if (steamcoachSession) {
+    const stats = await getScienceBowlStatsForUser(steamcoachSession.steamcoachUserId);
+    res.json({ source: 'account', stats });
+    return;
+  }
+
   const stats = ensureSessionStats(req.session);
   res.json({ source: 'session', stats: formatStats(stats) });
 });
 
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   const { subject, isCorrect, adjustment, wasNeg, shouldSped } = req.body ?? {};
   const normalizedSubject = typeof subject === 'string' ? subject.toUpperCase() : null;
   const isTossup = parseBoolean(req.body?.isTossup);
@@ -57,6 +77,34 @@ router.post('/', (req, res) => {
   if (!normalizedSubject || !SBCATEGORIES.includes(normalizedSubject)) {
     console.warn('[Science Bowl Session Stats] Rejecting invalid subject', { subject, normalizedSubject });
     return res.status(400).json({ error: 'Invalid subject' });
+  }
+
+  const steamcoachSession = getSteamcoachSession(req);
+  if (steamcoachSession) {
+    const correct = (isCorrect === true) || (isCorrect === 'true') || (isCorrect === 1) || (isCorrect === '1');
+    const increments = adjustment === 'wrong-to-correct'
+      ? {
+          correct: 1,
+          wrong: -1,
+          sped: adjustmentShouldSped ? 1 : 0,
+          negs: adjustmentWasNeg ? -1 : 0
+        }
+      : {
+          total: 1,
+          correct: correct ? 1 : 0,
+          wrong: correct ? 0 : 1,
+          sped: isTossup && buzzedEarly && correct ? 1 : 0,
+          negs: isTossup && buzzedEarly && !correct ? 1 : 0
+        };
+
+    const formatted = await incrementScienceBowlStatsForUser(
+      steamcoachSession.steamcoachUserId,
+      normalizedSubject,
+      increments,
+      { username: steamcoachSession.username }
+    );
+    res.json({ source: 'account', stats: formatted });
+    return;
   }
 
   const stats = ensureSessionStats(req.session);
@@ -99,10 +147,22 @@ router.post('/', (req, res) => {
   res.json({ source: 'session', stats: formatted });
 });
 
-router.delete('/', (req, res) => {
+router.delete('/', async (req, res) => {
+  const steamcoachSession = getSteamcoachSession(req);
+  if (steamcoachSession) {
+    const stats = await replaceScienceBowlStatsForUser(
+      steamcoachSession.steamcoachUserId,
+      {},
+      { username: steamcoachSession.username }
+    );
+    req.session.scienceBowlStats = {};
+    res.json({ source: 'account', stats });
+    return;
+  }
+
   req.session.scienceBowlStats = {};
   const stats = ensureSessionStats(req.session);
-  res.json({ source: 'session', stats: formatStats(stats) });
+  res.json({ source: 'session', stats: formatScienceBowlStats(stats) });
 });
 
 export default router;

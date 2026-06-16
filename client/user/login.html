@@ -2,7 +2,7 @@
 <html lang="en">
 
 <head>
-    <title>QB Reader</title>
+    <title>SBReader Login</title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="">
@@ -20,7 +20,7 @@
     <nav class="navbar navbar-light navbar-expand-lg bg-custom" id="navbar" style="z-index: 10">
         <div class="container-fluid">
             <a class="navbar-brand ms-1 py-0" id="logo" href="/">
-                <span class="logo-prefix">QB</span><span class="logo-suffix">Reader</span>
+                <span class="logo-prefix">SB</span><span class="logo-suffix">Reader</span>
             </a>
             <button class="navbar-toggler" data-bs-target="#navbarSupportedContent" data-bs-toggle="collapse" type="button"
                 aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
@@ -57,20 +57,20 @@
 
     <div class="container-xl mt-3 mb-5 pb-5">
         <p class="mt-1 lead">
-            Don't have an account?
-            Sign up <a href="/user/signup">here</a>.
+            Log in with your Steamcoach account.
+            Don't have one? Create one <a href="/user/signup">on Steamcoach</a>.
         </p>
         <form class="needs-validation" id="login-form" novalidate>
             <div class="col-12 mb-3">
-                <label class="form-label" for="username">Username</label>
+                <label class="form-label" for="username">Steamcoach username</label>
                 <input class="form-control" id="username" type="text" name="username" required>
-                <div class="invalid-feedback">Enter your username.</div>
+                <div class="invalid-feedback">Enter your Steamcoach username.</div>
             </div>
             <div class="col-12 mb-3">
                 <label class="form-label" for="password">Password</label>
                 <input class="form-control" id="password" type="password" name="password" required>
                 <div class="invalid-feedback">Enter your password.</div>
-                <div class="form-text" id="passwordHelp">Forgot your password? <a href="/user/forgot-password">Click here</a>.</div>
+                <div class="form-text" id="passwordHelp">Use the same password you use on Steamcoach.</div>
             </div>
             <button class="btn btn-primary" id="submission" type="submit">
                 Log in

@@ -1,7 +1,6 @@
-import getUserId from '../../../database/account-info/get-user-id.js';
-import getSubjectStats from '../../../database/science-bowl/get-subject-stats.js';
+import { formatScienceBowlStats, getScienceBowlStatsForUser } from '../../../database/science-bowl/stats.js';
 import { SBCATEGORIES } from '../../../quizbowl/categories.js';
-import { checkToken } from '../../../server/authentication.js';
+import { checkSteamcoachToken } from '../../../server/steamcoach/authentication.js';
 
 import { Router } from 'express';
 
@@ -30,24 +29,19 @@ function ensureSessionStats(session) {
 
 function formatSessionStats(session) {
   const stats = ensureSessionStats(session);
-  return SBCATEGORIES.map(subject => {
-    const { total = 0, correct = 0, wrong = 0, sped = 0, negs = 0 } = stats[subject] || {};
-    return { subject, total, correct, wrong, sped, negs };
-  });
+  return formatScienceBowlStats(stats);
 }
 
 router.get('/', async (req, res) => {
-  const { username, token } = req.session ?? {};
-  const hasValidSession = checkToken(username, token) && checkToken(username, token, true);
+  res.set('Cache-Control', 'no-store');
+  const { steamcoachUserId, steamcoachToken } = req.session ?? {};
+  const hasValidSession = checkSteamcoachToken(steamcoachUserId, steamcoachToken);
 
   try {
     if (hasValidSession) {
-      const userId = await getUserId(username);
-      if (userId) {
-        const stats = await getSubjectStats(userId);
-        res.json({ source: 'account', stats });
-        return;
-      }
+      const stats = await getScienceBowlStatsForUser(steamcoachUserId);
+      res.json({ source: 'account', stats });
+      return;
     }
   } catch (error) {
     console.error('Error getting Science Bowl subject stats:', error);

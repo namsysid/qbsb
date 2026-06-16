@@ -1,18 +1,18 @@
-import { checkToken } from '../../server/authentication.js';
+import { checkSteamcoachToken } from '../../server/steamcoach/authentication.js';
 
 import { Router } from 'express';
 
 const router = Router();
 
 router.get('/', async (req, res) => {
-  const { username, token, expires } = req.session;
-  if (!checkToken(username, token)) {
+  const { username, steamcoachUserId, steamcoachToken, expires } = req.session ?? {};
+  if (!checkSteamcoachToken(steamcoachUserId, steamcoachToken)) {
     delete req.session;
     res.sendStatus(401);
     return;
   }
 
-  res.json({ username, expires });
+  res.json({ username, steamcoachUserId, expires });
 });
 
 export default router;
